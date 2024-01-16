@@ -13,19 +13,39 @@ int main(int argc, char* argv[]) {
     serverAddress.sin_addr.s_addr = INADDR_ANY;
 
     // Bind the socket to server address
-    bind(serverSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress));
+    if (bind(serverSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) == -1) {
+        printf("Error binding the socket.\n");
+        close(serverSocket);
+        return -1;
+    }
 
-    listen(serverSocket, 5);
+    // Listen for incoming connections
+    if (listen(serverSocket, 5) == -1) {
+        printf("Error listening to port.\n");
+        close(serverSocket);
+        return -1;
+    }
 
     printf("Server listening on port %s...\n", argv[1]);
 
+    // Accept client connection
     int clientSocket = accept(serverSocket, NULL, NULL);
     printf("\n");
+    if (clientSocket == -1) {
+        printf("Failed to accept client connection.\n");
+        close(clientSocket);
+        close(serverSocket);
+        return -1;
+    }
     printf("Client %d connected.\n", clientSocket);
 
+    // Send server message
     char serverMessage[256] = "You have reached the server!";
-    send(clientSocket, serverMessage, sizeof(serverMessage), 0);
-    printf("Message sent to client.\n");
+    if (send(clientSocket, serverMessage, sizeof(serverMessage), 0) == -1) {
+        printf("Failed to sent a message to the client.\n");
+    } else {
+        printf("Message sent to client.\n");
+    }
 
     close(clientSocket);
     close(serverSocket);

@@ -1,12 +1,8 @@
-#include <stdio.h>
-#include <stdlib.h>
-
-#include <sys/types.h>
-#include <sys/socket.h>
-
-#include <netinet/in.h>
+#include "tcpnet.h"
 
 int main(int argc, char* argv[]) {
+    if (!isValidCommand(argc, argv)) { return 0; }
+
     char serverMessage[256] = "You have reached the server!";
 
     // Creating socket

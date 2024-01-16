@@ -24,7 +24,7 @@ int isValidCommand(int argc, char* argv[]) {
     }
 
     // Check for valid port format
-    for (int i = 0; argv[2][i] != '\n'; i++) {
+    for (int i = 0; argv[2][i] != '\n' && argv[2][i] != '\0'; i++) {
         if (argv[2][i] < '0' || argv[2][i] > '9') {
             printf("Error. Wrong port format.\n");
             return 0;

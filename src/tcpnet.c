@@ -44,7 +44,7 @@ struct TCPSock* createTCPSocket(char* ip, char* port) {
     if (tcpSock == NULL) { return NULL; }
 
     // Creating socket
-    tcpSock->socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    tcpSock->socket = socket(AF_INET, SOCK_STREAM, 0);
     if (tcpSock->socket == -1) { return NULL; }
 
     // Specifying address for the socket
@@ -57,7 +57,7 @@ struct TCPSock* createTCPSocket(char* ip, char* port) {
 
 int connectClient(struct TCPSock* client) {
     if (connect(client->socket, (struct sockaddr*)&client->sockaddr, sizeof(client->sockaddr)) == -1) {
-        printf("Error connecting to the remote socket.\n");
+        printf("Couldn\'t reach the server.\n");
         close(client->socket);
         return -1;
     } else {

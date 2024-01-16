@@ -15,6 +15,32 @@ int main(int argc, char* argv[]) {
     printf("Attempting to connect to %s:%s...\n", argv[1], argv[2]);
     if (connectClient(clientSocket, &serverAddress) == -1) { return -1;}
 
+    char userInput[10] = {'\0'};
+    scanf("%s", userInput);
+
+    if (!strcmp(userInput, "ls")) {
+        struct stat st;
+        if (stat("files", &st)) {
+            printf("Couldn\'t find the folder.\n");
+            if (mkdir("files", 0777)) {
+                printf("Failed to create files directory.\n");
+                return -1;
+            }
+        }
+
+        DIR* dir = opendir("files");
+        struct dirent *entry;
+        while ((entry = readdir(dir)) != NULL) {
+            if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
+                // Print the name of each file in the directory
+                printf("%s\n", entry->d_name);
+            }
+        }
+        closedir(dir);
+    }
+
+
+    #ifdef MESSAGEHNDL
     // Recieve data from server
     char serverResponse[256];
     if (recv(clientSocket, &serverResponse, sizeof(serverResponse), 0) == -1) {
@@ -24,6 +50,7 @@ int main(int argc, char* argv[]) {
     }
 
     printf("Server sent the data: %s\n", serverResponse);
+    #endif
 
     close(clientSocket);
     return 0;

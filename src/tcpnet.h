@@ -21,4 +21,4 @@ int isValidCommand(int argc, char* argv[]);
 struct TCPSock* createTCPSocket(char* ip, char* port);
 
 // Connects client with the server and handle errors
-int connectClient(struct TCPSock* server);
+int connectClient(struct TCPSock* client);

@@ -55,11 +55,10 @@ struct TCPSock* createTCPSocket(char* ip, char* port) {
     return tcpSock;
 }
 
-int connectClient(struct TCPSock* server) {
-    int connStatus = connect(server->socket, (struct sockaddr*)&server->sockaddr, sizeof(server->sockaddr));
-    if (connStatus == -1)  {
+int connectClient(struct TCPSock* client) {
+    if (connect(client->socket, (struct sockaddr*)&client->sockaddr, sizeof(client->sockaddr)) == -1) {
         printf("Error connecting to the remote socket.\n");
-        close(server->socket);
+        close(client->socket);
         return -1;
     } else {
         printf("Connected to the server!\n\n");

@@ -9,16 +9,11 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-struct TCPSock {
-    int socket;
-    struct sockaddr_in sockaddr;
-};
+// Verifies for valid client console arguments
+int isValidClientCommand(int argc, char* argv[]);
 
-// Verifies for valid console arguments
-int isValidCommand(int argc, char* argv[]);
-
-// Creates a TCPSocket structure
-struct TCPSock* createTCPSocket(char* ip, char* port);
+// Verifies for valid server console arguments
+int isValidServerCommand(int argc, char* argv[]);
 
 // Connects client with the server and handle errors
-int connectClient(struct TCPSock* client);
+int connectClient(int clientSocket, struct sockaddr_in* serverAddress);

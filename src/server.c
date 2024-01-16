@@ -1,20 +1,25 @@
 #include "tcpnet.h"
 
 int main(int argc, char* argv[]) {
-    if (!isValidCommand(argc, argv)) { return 0; }
+    if (!isValidServerCommand(argc, argv)) { return 0; }
 
     // Creates socket and sockaddr
-    struct TCPSock* server = createTCPSocket(argv[1], argv[2]);
-    if (server == NULL) { return 0; }
+    int serverSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (serverSocket == -1) { return -1; }
+
+    struct sockaddr_in serverAddress;
+    serverAddress.sin_family = AF_INET;
+    serverAddress.sin_port = htons(atoi(argv[1]));
+    serverAddress.sin_addr.s_addr = INADDR_ANY;
 
     // Bind the socket to server address
-    bind(server->socket, (struct sockaddr*)&server->sockaddr, sizeof(server->sockaddr));
+    bind(serverSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress));
 
-    listen(server->socket, 5);
+    listen(serverSocket, 5);
 
-    printf("Server listening on port %s...\n", argv[2]);
+    printf("Server listening on port %s...\n", argv[1]);
 
-    int clientSocket = accept(server->socket, NULL, NULL);
+    int clientSocket = accept(serverSocket, NULL, NULL);
     printf("\n");
     printf("Client %d connected.\n", clientSocket);
 
@@ -22,6 +27,7 @@ int main(int argc, char* argv[]) {
     send(clientSocket, serverMessage, sizeof(serverMessage), 0);
     printf("Message sent to client.\n");
 
-    close(server->socket);
+    close(clientSocket);
+    close(serverSocket);
     return 0;
 }

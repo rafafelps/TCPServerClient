@@ -1,6 +1,6 @@
 #include "tcpnet.h"
 
-int isValidCommand(int argc, char* argv[]) {
+int isValidClientCommand(int argc, char* argv[]) {
     // Check arguments length
     if (argc != 3) {
         char* program = strrchr(argv[0], '\\');
@@ -39,26 +39,39 @@ int isValidCommand(int argc, char* argv[]) {
     return 1;
 }
 
-struct TCPSock* createTCPSocket(char* ip, char* port) {
-    struct TCPSock* tcpSock = (struct TCPSock*)malloc(sizeof(struct TCPSock));
-    if (tcpSock == NULL) { return NULL; }
+int isValidServerCommand(int argc, char* argv[]) {
+    // Check arguments length
+    if (argc != 2) {
+        char* program = strrchr(argv[0], '\\');
 
-    // Creating socket
-    tcpSock->socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (tcpSock->socket == -1) { return NULL; }
+        if (program == NULL) {
+            program = argv[0];
+            printf("Error. Command usage: %s [port]\n", program);
+        } else {
+            printf("Error. Command usage: .%s [port]\n", program);
+        }
+        
+        return 0;
+    }
 
-    // Specifying address for the socket
-    tcpSock->sockaddr.sin_family = AF_INET;
-    tcpSock->sockaddr.sin_port = htons(atoi(port));
-    inet_pton(AF_INET, ip, &tcpSock->sockaddr.sin_addr);
-
-    return tcpSock;
+    // Check for valid port format
+    for (int i = 0; argv[1][i] != '\n' && argv[1][i] != '\0'; i++) {
+        if (argv[1][i] < '0' || argv[1][i] > '9') {
+            printf("Error. Wrong port format.\n");
+            return 0;
+        }
+    }
+    int result = atoi(argv[1]);
+    if (result < 0 || result > 65535) {
+        printf("Error. Wrong port format.\n");
+        return 0;
+    }
 }
 
-int connectClient(struct TCPSock* client) {
-    if (connect(client->socket, (struct sockaddr*)&client->sockaddr, sizeof(client->sockaddr)) == -1) {
+int connectClient(int clientSocket, struct sockaddr_in* serverAddress) {
+    if (connect(clientSocket, (struct sockaddr*)serverAddress, sizeof(*serverAddress)) == -1) {
         printf("Couldn\'t reach the server.\n");
-        close(client->socket);
+        close(clientSocket);
         return -1;
     } else {
         printf("Connected to the server!\n\n");

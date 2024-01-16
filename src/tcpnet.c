@@ -38,3 +38,31 @@ int isValidCommand(int argc, char* argv[]) {
 
     return 1;
 }
+
+struct TCPSock* createTCPSocket(char* ip, char* port) {
+    struct TCPSock* tcpSock = (struct TCPSock*)malloc(sizeof(struct TCPSock));
+    if (tcpSock == NULL) { return NULL; }
+
+    // Creating socket
+    tcpSock->socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (tcpSock->socket == -1) { return NULL; }
+
+    // Specifying address for the socket
+    tcpSock->sockaddr.sin_family = AF_INET;
+    tcpSock->sockaddr.sin_port = htons(atoi(port));
+    inet_pton(AF_INET, ip, &tcpSock->sockaddr.sin_addr);
+
+    return tcpSock;
+}
+
+int connectClient(struct TCPSock* server) {
+    int connStatus = connect(server->socket, (struct sockaddr*)&server->sockaddr, sizeof(server->sockaddr));
+    if (connStatus == -1)  {
+        printf("Error connecting to the remote socket.\n");
+        close(server->socket);
+        return -1;
+    } else {
+        printf("Connected to the server!\n\n");
+        return 0;
+    }
+}

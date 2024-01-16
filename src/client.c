@@ -1,34 +1,21 @@
 #include "tcpnet.h"
 
 int main(int argc, char* argv[]) {
-    if (!isValidCommand(argc, argv)) { return 0; }
+    if (!isValidCommand(argc, argv)) { return -1; }
 
-    // Creating socket
-    int networkSocket = socket(AF_INET, SOCK_STREAM, 0);
-
-    // Specifying address for the socket
-    struct sockaddr_in serverAddress;
-    serverAddress.sin_family = AF_INET;
-    serverAddress.sin_port = htons(9002);
-    inet_pton(AF_INET, "127.0.0.1", &(serverAddress.sin_addr));
+    // Creates socket and sockaddr
+    struct TCPSock* server = createTCPSocket(argv[1], argv[2]);
+    if (server == NULL) { return -1; }
 
     printf("Attempting to connect to %s:%s...\n", argv[1], argv[2]);
-
-    int connStatus = connect(networkSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress));
-    if (connStatus == -1)  {
-        printf("Error connecting to the remote socket.\n");
-        close(networkSocket);
-        return -1;
-    } else {
-        printf("Connected to the server!\n\n");
-    }
+    if (connectClient(server) == -1) { return -1;}
 
     // Recieve data from server
     char serverResponse[256];
-    recv(networkSocket, &serverResponse, sizeof(serverResponse), 0);
+    recv(server->socket, &serverResponse, sizeof(serverResponse), 0);
 
     printf("Server sent the data: %s\n", serverResponse);
 
-    close(networkSocket);
+    close(server->socket);
     return 0;
 }

@@ -3,32 +3,25 @@
 int main(int argc, char* argv[]) {
     if (!isValidCommand(argc, argv)) { return 0; }
 
-    char serverMessage[256] = "You have reached the server!";
-
-    // Creating socket
-    int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
-
-    // Define server address
-    struct sockaddr_in serverAddress;
-    serverAddress.sin_family = AF_INET;
-    serverAddress.sin_port = htons(9002);
-    serverAddress.sin_addr.s_addr = INADDR_ANY;
+    // Creates socket and sockaddr
+    struct TCPSock* server = createTCPSocket(argv[1], argv[2]);
+    if (server == NULL) { return 0; }
 
     // Bind the socket to server address
-    bind(serverSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress));
+    bind(server->socket, (struct sockaddr*)&server->sockaddr, sizeof(server->sockaddr));
 
-    listen(serverSocket, 5);
+    listen(server->socket, 5);
 
-    printf("Server started listening on port %s...\n", argv[2]);
+    printf("Server listening on port %s...\n", argv[2]);
 
-    int clientSocket = accept(serverSocket, NULL, NULL);
+    int clientSocket = accept(server->socket, NULL, NULL);
     printf("\n");
     printf("Client %d connected.\n", clientSocket);
 
+    char serverMessage[256] = "You have reached the server!";
     send(clientSocket, serverMessage, sizeof(serverMessage), 0);
     printf("Message sent to client.\n");
 
-    close(serverSocket);
-
+    close(server->socket);
     return 0;
 }

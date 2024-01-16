@@ -12,10 +12,15 @@ int main(int argc, char* argv[]) {
     serverAddress.sin_port = htons(9002);
     inet_pton(AF_INET, "127.0.0.1", &(serverAddress.sin_addr));
 
+    printf("Attempting to connect to %s:%s...\n", argv[1], argv[2]);
+
     int connStatus = connect(networkSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress));
     if (connStatus == -1)  {
         printf("Error connecting to the remote socket.\n");
+        close(networkSocket);
         return -1;
+    } else {
+        printf("Connected to the server!\n\n");
     }
 
     // Recieve data from server

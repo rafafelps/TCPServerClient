@@ -19,9 +19,14 @@ int main(int argc, char* argv[]) {
 
     listen(serverSocket, 5);
 
+    printf("Server started listening on port %s...\n", argv[2]);
+
     int clientSocket = accept(serverSocket, NULL, NULL);
+    printf("\n");
+    printf("Client %d connected.\n", clientSocket);
 
     send(clientSocket, serverMessage, sizeof(serverMessage), 0);
+    printf("Message sent to client.\n");
 
     close(serverSocket);
 

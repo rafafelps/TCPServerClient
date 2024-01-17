@@ -5,7 +5,7 @@ int main(int argc, char* argv[]) {
 
     // Creates socket and sockaddr
     int clientSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (clientSocket == -1) { return -1; }
+    if (clientSocket < 0) { return -1; }
 
     struct sockaddr_in serverAddress;
     serverAddress.sin_family = AF_INET;
@@ -16,12 +16,12 @@ int main(int argc, char* argv[]) {
     if (connectClient(clientSocket, &serverAddress) == -1) { return -1;}
 
     char userInput[10] = {'\0'};
+    printf(">");
     scanf("%s", userInput);
 
     if (!strcmp(userInput, "ls")) {
         struct stat st;
         if (stat("files", &st)) {
-            printf("Couldn\'t find the folder.\n");
             if (mkdir("files", 0777)) {
                 printf("Failed to create files directory.\n");
                 return -1;

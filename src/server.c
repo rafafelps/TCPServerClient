@@ -60,13 +60,32 @@ int main(int argc, char* argv[]) {
     //acceptConnections(&server);
     
     // Exit command
-    char message[5] = {'\n'};
+    char message[5] = {'\0'};
     while (strcmp(message, "exit")) {
         scanf("%s", message);
-        message[4] = '\n';
+        message[4] = '\0';
+
+        for (uint8_t i = 0; message[i] != '\0'; i++) {
+            message[i] = tolower(message[i]);
+        }
     }
     server.isRunning = 0;
+
+    // Save the current stdout file descriptor
+    int original_stdout = dup(fileno(stdout));
+
+    // Redirect stdout to /dev/null or a temporary file
+    freopen("/dev/null", "w", stdout);
+
+    // Creates a fake connection to unblock connect()
+    int tmpSock = socket(AF_INET, SOCK_STREAM, 0);
+    close(connect(tmpSock, (struct sockaddr*)&server.address, sizeof(server.address)));
+    close(tmpSock);
     pthread_join(connThread, NULL);
+
+    // Restore stdout to its original state
+    dup2(original_stdout, fileno(stdout));
+    close(original_stdout);
 
     // Disconnects all clients
     for (uint32_t i = 0; i < MAX_CLIENTS; i++) {

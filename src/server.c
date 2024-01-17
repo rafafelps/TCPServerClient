@@ -47,8 +47,7 @@ int main(int argc, char* argv[]) {
         return -1;
     }
 
-    printf("Server listening on port %s...", argv[1]);
-    fflush(stdout);
+    printf("Server listening on port %s...\n", argv[1]);
 
     for (uint32_t i = 0; i < MAX_CLIENTS; i++) {
         server.clients[i] = NULL;
@@ -59,16 +58,12 @@ int main(int argc, char* argv[]) {
     pthread_t connThread;
     pthread_create(&connThread, NULL, acceptConnections, &server);
     //acceptConnections(&server);
-
+    
     // Exit command
     char message[5] = {'\n'};
-    while (strcmp(message, "exit") != 0) {
+    while (strcmp(message, "exit")) {
         scanf("%s", message);
-
         message[4] = '\n';
-        for(uint8_t i = 0; message[i] != '\n'; i++){
-            message[i] = tolower(message[i]);
-        }
     }
     server.isRunning = 0;
     pthread_join(connThread, NULL);
@@ -96,16 +91,15 @@ void* acceptConnections(struct ServerData* server) {
     while (server->isRunning) {
         struct Client* client = (struct Client*)malloc(sizeof(struct Client));
         if (client == NULL) {
-            printf("\nFailed to allocate memory for client.\n");
+            printf("Failed to allocate memory for client.\n");
             continue;
         }
 
         // Accept new client
         client->addressLength = sizeof(client->address);
         client->socket = accept(server->socket, (struct sockaddr*)&client->address, &client->addressLength);
-        printf("\n");
         if (client->socket < 0) {
-            printf("\nFailed to accept connection from %s:%d\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
+            printf("Failed to accept connection from %s:%d\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
             continue;
         }
 
@@ -114,6 +108,8 @@ void* acceptConnections(struct ServerData* server) {
             // Send server full message
             char message[] = "full";
             send(client->socket, message, strlen(message), 0);
+
+            printf("Failed connection attempt. Server is full.\n");
 
             close(client->socket);
             continue;

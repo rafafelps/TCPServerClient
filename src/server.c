@@ -3,6 +3,7 @@
 #include "tcpnet.h"
 
 #define MAX_CLIENTS 1
+#define AUTH "ohygIf2YICKdNafb5YePqgI02EuI6Cd"
 
 struct Client {
     int socket;
@@ -111,7 +112,7 @@ void* acceptConnections(void* server) {
     while (sv->isRunning) {
         struct Client* client = (struct Client*)malloc(sizeof(struct Client));
         if (client == NULL) {
-            printf("Failed to allocate memory for client.\n");
+            printf("\nFailed to allocate memory for client.\n");
             continue;
         }
 
@@ -119,17 +120,30 @@ void* acceptConnections(void* server) {
         client->addressLength = sizeof(client->address);
         client->socket = accept(sv->socket, (struct sockaddr*)&client->address, &client->addressLength);
         if (client->socket < 0) {
-            printf("Failed to accept connection from %s:%d\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
+            printf("\nFailed to accept connection from %s:%d\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
             continue;
         }
 
         // Check server capacity
         if (sv->connectedClients >= MAX_CLIENTS) {
             // Send server full message
-            char message[] = "full";
-            send(client->socket, message, strlen(message), 0);
+            send(client->socket, "full", strlen("full"), 0);
 
-            printf("Refused connection. Server is full.\n");
+            printf("\nRefused connection. Server is full.\n");
+
+            close(client->socket);
+            continue;
+        }
+
+        // Validate client
+        char auth[32] = {'\0'};
+        recv(client->socket, auth, 32, 0);
+        auth[31] = '\0';
+        if (strcmp(auth, AUTH)) {
+            // Send authentication error message
+            send(client->socket, "auth", strlen("auth"), 0);
+
+            printf("\nRefused connection. Wrong authentication code.\n");
 
             close(client->socket);
             continue;

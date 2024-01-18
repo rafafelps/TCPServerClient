@@ -69,7 +69,7 @@ int isValidServerCommand(int argc, char* argv[]) {
 }
 
 int connectClient(int clientSocket, struct sockaddr_in* serverAddress) {
-    if (connect(clientSocket, (struct sockaddr*)serverAddress, sizeof(*serverAddress)) == -1) {
+    if (connect(clientSocket, (struct sockaddr*)serverAddress, sizeof(*serverAddress)) < 0) {
         printf("Couldn\'t reach the server.\n");
         close(clientSocket);
         return -1;

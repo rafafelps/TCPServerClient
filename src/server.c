@@ -28,7 +28,10 @@ int main(int argc, char* argv[]) {
 
     // Fills socket and sockaddr
     server.socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (server.socket < 0) { return -1; }
+    if (server.socket < 0) {
+        printf("Error creating server socket.\n");
+        return -1;
+    }
 
     server.address.sin_family = AF_INET;
     server.address.sin_port = htons(atoi(argv[1]));
@@ -55,6 +58,7 @@ int main(int argc, char* argv[]) {
     }
     server.connectedClients = 0;
 
+    // Spawn connection handler thread
     server.isRunning = 1;
     pthread_t connThread;
     pthread_create(&connThread, NULL, handleConnections, &server);
@@ -216,6 +220,9 @@ void* handleClient(void* sv) {
         } else if (!strcmp(message, "down")) {
             // Download function
             printf("%s:%d downloaded a file from the server.\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
+        } else if (!strcmp(message, "dlfl")) {
+            // Delete file function
+            printf("%s:%d delete a file from the server.\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
         }
     }
 

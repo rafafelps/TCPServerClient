@@ -18,7 +18,7 @@ struct ServerData {
     uint8_t isRunning;
 };
 
-void* acceptConnections(struct ServerData* server);
+void* acceptConnections(void* server);
 
 int main(int argc, char* argv[]) {
     if (!isValidServerCommand(argc, argv)) { return 0; }
@@ -72,10 +72,11 @@ int main(int argc, char* argv[]) {
     server.isRunning = 0;
 
     // Save the current stdout file descriptor
-    int original_stdout = dup(fileno(stdout));
+    int old_stdout = dup(1);
 
     // Redirect stdout to /dev/null or a temporary file
     freopen("/dev/null", "w", stdout);
+    fclose(stdout);
 
     // Creates a fake connection to unblock connect()
     int tmpSock = socket(AF_INET, SOCK_STREAM, 0);
@@ -84,8 +85,7 @@ int main(int argc, char* argv[]) {
     pthread_join(connThread, NULL);
 
     // Restore stdout to its original state
-    dup2(original_stdout, fileno(stdout));
-    close(original_stdout);
+    stdout = fdopen(old_stdout, "w");
 
     // Disconnects all clients
     for (uint32_t i = 0; i < MAX_CLIENTS; i++) {
@@ -106,8 +106,9 @@ int main(int argc, char* argv[]) {
     return 0;
 }
 
-void* acceptConnections(struct ServerData* server) {
-    while (server->isRunning) {
+void* acceptConnections(void* server) {
+    struct ServerData* sv = (struct ServerData*)server;
+    while (sv->isRunning) {
         struct Client* client = (struct Client*)malloc(sizeof(struct Client));
         if (client == NULL) {
             printf("Failed to allocate memory for client.\n");
@@ -116,19 +117,19 @@ void* acceptConnections(struct ServerData* server) {
 
         // Accept new client
         client->addressLength = sizeof(client->address);
-        client->socket = accept(server->socket, (struct sockaddr*)&client->address, &client->addressLength);
+        client->socket = accept(sv->socket, (struct sockaddr*)&client->address, &client->addressLength);
         if (client->socket < 0) {
             printf("Failed to accept connection from %s:%d\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
             continue;
         }
 
         // Check server capacity
-        if (server->connectedClients >= MAX_CLIENTS) {
+        if (sv->connectedClients >= MAX_CLIENTS) {
             // Send server full message
             char message[] = "full";
             send(client->socket, message, strlen(message), 0);
 
-            printf("Failed connection attempt. Server is full.\n");
+            printf("Refused connection. Server is full.\n");
 
             close(client->socket);
             continue;
@@ -136,13 +137,13 @@ void* acceptConnections(struct ServerData* server) {
 
         // Add client to server list
         for (uint32_t i = 0; i < MAX_CLIENTS; i++) {
-            if (server->clients[i] == NULL) {
-                server->clients[i] = client;
-                server->connectedClients++;
+            if (sv->clients[i] == NULL) {
+                sv->clients[i] = client;
+                sv->connectedClients++;
                 break;
             }
         }
-        printf("\nConnection accepted from %s:%d\nTotal connected clients: %d\n\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port), server->connectedClients);
+        printf("\nConnection accepted from %s:%d\nTotal connected clients: %d\n\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port), sv->connectedClients);
         
         // Spawn client handler trhread
     }

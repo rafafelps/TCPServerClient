@@ -2,7 +2,7 @@
 #include <pthread.h>
 #include "tcpnet.h"
 
-#define MAX_CLIENTS 1
+#define MAX_CLIENTS 2
 #define AUTH "ohygIf2YICKdNafb5YePqgI02EuI6Cd"
 
 struct Client {
@@ -15,11 +15,13 @@ struct ServerData {
     int socket;
     struct sockaddr_in address;
     struct Client* clients[MAX_CLIENTS];
+    struct Client* currentClient;
     uint8_t connectedClients;
     uint8_t isRunning;
 };
 
-void* acceptConnections(void* server);
+void* handleConnections(void* sv);
+void* handleClient(void* cl);
 
 int main(int argc, char* argv[]) {
     if (!isValidServerCommand(argc, argv)) { return 0; }
@@ -57,8 +59,7 @@ int main(int argc, char* argv[]) {
 
     server.isRunning = 1;
     pthread_t connThread;
-    pthread_create(&connThread, NULL, acceptConnections, &server);
-    //acceptConnections(&server);
+    pthread_create(&connThread, NULL, handleConnections, &server);
     
     // Exit command
     char message[5] = {'\0'};
@@ -75,7 +76,7 @@ int main(int argc, char* argv[]) {
     // Save the current stdout file descriptor
     int old_stdout = dup(1);
 
-    // Redirect stdout to /dev/null or a temporary file
+    // Redirect stdout to /dev/null
     freopen("/dev/null", "w", stdout);
     fclose(stdout);
 
@@ -90,48 +91,51 @@ int main(int argc, char* argv[]) {
 
     // Disconnects all clients
     for (uint32_t i = 0; i < MAX_CLIENTS; i++) {
-        if (server.clients[i] == NULL) {
-            continue;
-        }
+        if (server.clients[i] == NULL) { continue; }
 
-        // Send message to client
-        char message[] = "clsd";
-        send(server.clients[i]->socket, message, strlen(message), 0);
+        // Send server closed message to client
+        send(server.clients[i]->socket, "clsd", strlen("clsd"), 0);
 
         close(server.clients[i]->socket);
         free(server.clients[i]);
         server.clients[i] == NULL;
+        server.connectedClients--;
     }
 
     close(server.socket);
     return 0;
 }
 
-void* acceptConnections(void* server) {
-    struct ServerData* sv = (struct ServerData*)server;
-    while (sv->isRunning) {
+// Accepts new connections, adds them to the server list
+// and creates a new thread for each connection.
+// Parameter is struct ServerData*
+void* handleConnections(void* sv) {
+    struct ServerData* server = (struct ServerData*)sv;
+    while (server->isRunning) {
         struct Client* client = (struct Client*)malloc(sizeof(struct Client));
         if (client == NULL) {
-            printf("\nFailed to allocate memory for client.\n");
+            printf("Failed to allocate memory for client.\n");
             continue;
         }
 
         // Accept new client
         client->addressLength = sizeof(client->address);
-        client->socket = accept(sv->socket, (struct sockaddr*)&client->address, &client->addressLength);
+        client->socket = accept(server->socket, (struct sockaddr*)&client->address, &client->addressLength);
         if (client->socket < 0) {
-            printf("\nFailed to accept connection from %s:%d\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
+            printf("Failed to accept connection from %s:%d\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
+            free(client);
             continue;
         }
 
         // Check server capacity
-        if (sv->connectedClients >= MAX_CLIENTS) {
+        if (server->connectedClients >= MAX_CLIENTS) {
             // Send server full message
             send(client->socket, "full", strlen("full"), 0);
 
-            printf("\nRefused connection. Server is full.\n");
+            printf("Refused connection. Server is full.\n");
 
             close(client->socket);
+            free(client);
             continue;
         }
 
@@ -143,23 +147,78 @@ void* acceptConnections(void* server) {
             // Send authentication error message
             send(client->socket, "auth", strlen("auth"), 0);
 
-            printf("\nRefused connection. Wrong authentication code.\n");
+            printf("Refused connection from %s:%d. Wrong authentication code.\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
 
             close(client->socket);
+            free(client);
             continue;
         }
 
         // Add client to server list
         for (uint32_t i = 0; i < MAX_CLIENTS; i++) {
-            if (sv->clients[i] == NULL) {
-                sv->clients[i] = client;
-                sv->connectedClients++;
+            if (server->clients[i] == NULL) {
+                server->clients[i] = client;
+                server->connectedClients++;
+                server->currentClient = client;
                 break;
             }
         }
-        printf("\nConnection accepted from %s:%d\nTotal connected clients: %d\n\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port), sv->connectedClients);
-        
-        // Spawn client handler trhread
+
+        printf("\nConnection accepted from %s:%d\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
+        printf("Total connected clients: %d\n\n", server->connectedClients);
+
+        // Send connection successful status to client
+        send(client->socket, "conn", strlen("conn"), 0);
+
+        // Spawn client handler thread
+        pthread_t id;
+        pthread_create(&id, NULL, handleClient, server);
+    }
+
+    return NULL;
+}
+
+void* handleClient(void* sv) {
+    struct ServerData* server = (struct ServerData*)sv;
+    struct Client* client = server->currentClient;
+
+    char message[5] = {'\0'};
+    while (server->isRunning) {
+        ssize_t status = recv(client->socket, message, 4, 0);
+
+        // Check disconnected client
+        if (!status) {
+            printf("\nClient %s:%d disconnected from the server.\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
+
+            // Remove client from server list
+            for (uint32_t i = 0; i < MAX_CLIENTS; i++) {
+                if (server->clients[i] == NULL) { continue; }
+
+                if (server->clients[i]->socket == client->socket) {
+                    close(server->clients[i]->socket);
+                    free(server->clients[i]);
+                    server->clients[i] = NULL;
+                    server->connectedClients--;
+                    break;
+                }
+            }
+
+            printf("Total connected clients: %d\n\n", server->connectedClients);
+
+            break;
+        }
+
+        // Check client message and call a specific action
+        if (!strcmp(message, "list")) {
+            // List function
+            printf("Listed server files to %s:%d.\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
+        } else if (!strcmp(message, "upld")) {
+            // Upload function
+            printf("%s:%d uploaded a file to the server.\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
+        } else if (!strcmp(message, "down")) {
+            // Download function
+            printf("%s:%d downloaded a file from the server.\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
+        }
     }
 
     return NULL;

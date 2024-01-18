@@ -73,8 +73,6 @@ int connectClient(int clientSocket, struct sockaddr_in* serverAddress) {
         printf("Couldn\'t reach the server.\n");
         close(clientSocket);
         return -1;
-    } else {
-        printf("Connected to the server!\n\n");
-        return 0;
     }
+    return 0;
 }

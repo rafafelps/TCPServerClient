@@ -1,5 +1,7 @@
 #include "tcpnet.h"
 
+#define AUTH "ohygIf2YICKdNafb5YePqgI02EuI6Cd"
+
 int main(int argc, char* argv[]) {
     if (!isValidClientCommand(argc, argv)) { return -1; }
 
@@ -14,6 +16,12 @@ int main(int argc, char* argv[]) {
 
     printf("Attempting to connect to %s:%s...\n", argv[1], argv[2]);
     if (connectClient(clientSocket, &serverAddress) == -1) { return -1;}
+    send(clientSocket, AUTH, strlen(AUTH), 0);
+    char svMessage[5] = {'\0'};
+    recv(clientSocket, svMessage, 4, 0);
+    if (!strcmp(svMessage, "conn")) {
+        printf("Connected to the server!\n");
+    }
 
     char userInput[10] = {'\0'};
     printf(">");
@@ -38,7 +46,6 @@ int main(int argc, char* argv[]) {
         }
         closedir(dir);
     }
-
 
     #ifdef MESSAGEHNDL
     // Recieve data from server

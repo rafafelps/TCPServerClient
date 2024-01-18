@@ -1,5 +1,3 @@
-#include <ctype.h>
-#include <pthread.h>
 #include "tcpnet.h"
 
 #define MAX_CLIENTS 2

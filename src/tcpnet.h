@@ -3,6 +3,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <dirent.h>
+#include <ctype.h>
+#include <pthread.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>

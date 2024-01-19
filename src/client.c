@@ -1,6 +1,7 @@
 #include "tcpnet.h"
 
 #define AUTH "ohygIf2YICKdNafb5YePqgI02EuI6Cd"
+#define COMM_LEN 64
 
 struct Client {
     int socket;
@@ -48,8 +49,10 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-    client.isRunning = 1;
     // Spawn client console thread
+    client.isRunning = 1;
+    pthread_t consoleThread;
+    pthread_create(&consoleThread, NULL, clientConsole, &client);
 
     // Create a new socket descriptor for non-blocking recv
     int nonBlockingSocket = dup(client.socket);
@@ -67,7 +70,7 @@ int main(int argc, char* argv[]) {
     }
 
     if (client.isRunning) {
-        printf("Server closed.\n");
+        printf("\nServer closed.\n");
     }
 
 
@@ -110,4 +113,53 @@ int main(int argc, char* argv[]) {
     close(nonBlockingSocket);
     close(client.socket);
     return 0;
+}
+
+void* clientConsole(void* cl) {
+    struct Client* client = (struct Client*)cl;
+
+    char command[COMM_LEN] = {'\0'};
+    while (client->isRunning) {
+        printf("\n> ");
+        fgets(command, sizeof(command), stdin);
+
+        // Lowercase first command
+        char action[COMM_LEN] = {'\0'};
+        uint32_t wordEnd;
+        for (wordEnd = 0; command[wordEnd] != '\0'; wordEnd++) {
+            if (command[wordEnd] == ' ' || command[wordEnd] == '\n') { break; }
+
+            action[wordEnd] = tolower(command[wordEnd]);
+        }
+
+        if (!strcmp(action, "list") || !strcmp(action, "ls")) {
+            // List command
+            printf("List\n");
+        } else if (!strcmp(action, "upload") || !strcmp(action, "up")) {
+            // Upload command
+            printf("Upload\n");
+        } else if (!strcmp(action, "download") || !strcmp(action, "dwn")) {
+            // Download command
+            printf("Download\n");
+        } else if (!strcmp(action, "delete") || !strcmp(action, "del")) {
+            // Delete command
+            printf("Delete\n");
+        } else if (!strcmp(action, "help") || !strcmp(action, "h")) {
+            // Help command
+            printf("\n\x1b[1;36m================================ Command List ===============================\x1b[0m\n");
+            printf("\x1b[1;34mhelp     (h)   : \x1b[0mShows this information.\n");
+            printf("\x1b[1;34mlist     (ls)  : \x1b[0mLists all server files.\n");
+            printf("\x1b[1;34mupload   (up)  : \x1b[0mUploads a file to the server. Usage: upload [path]\n");
+            printf("\x1b[1;34mdownload (dwn) : \x1b[0mDownloads a file from the server. Usage: download [filename]\n");
+            printf("\x1b[1;34mdelete   (del) : \x1b[0mDeletes a file from the server. Usage: delete [filename]\n");
+            printf("\x1b[1;34mexit           : \x1b[0mDisconnects from the server and closes the program.\n");
+            printf("\x1b[1;36m=============================================================================\x1b[0m\n\n");
+        } else if (!strcmp(action, "exit")) {
+            client->isRunning = 0;
+        } else {
+            printf("Command not found. Type \"help\" or \"h\" for help.\n");
+        }
+    }
+
+    return NULL;
 }

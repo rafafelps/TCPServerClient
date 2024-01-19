@@ -134,16 +134,16 @@ void* clientConsole(void* cl) {
 
         if (!strcmp(action, "list") || !strcmp(action, "ls")) {
             // List command
-            printf("List\n");
+            send(client->socket, "list", strlen("list"), 0);
         } else if (!strcmp(action, "upload") || !strcmp(action, "up")) {
             // Upload command
-            printf("Upload\n");
+            send(client->socket, "upld", strlen("upld"), 0);
         } else if (!strcmp(action, "download") || !strcmp(action, "dwn")) {
             // Download command
-            printf("Download\n");
+            send(client->socket, "down", strlen("down"), 0);
         } else if (!strcmp(action, "delete") || !strcmp(action, "del")) {
             // Delete command
-            printf("Delete\n");
+            send(client->socket, "dlfl", strlen("dlfl"), 0);
         } else if (!strcmp(action, "help") || !strcmp(action, "h")) {
             // Help command
             printf("\n\x1b[1;36m================================ Command List ===============================\x1b[0m\n");

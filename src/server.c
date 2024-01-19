@@ -221,7 +221,7 @@ void* handleClient(void* sv) {
         // Check client message and call a specific action
         if (!strcmp(message, "list")) {
             // List function
-            printf("Listed server files to %s:%d.\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
+            printf("%s:%d listed server files.\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
         } else if (!strcmp(message, "upld")) {
             // Upload function
             printf("%s:%d uploaded a file to the server.\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
@@ -230,7 +230,7 @@ void* handleClient(void* sv) {
             printf("%s:%d downloaded a file from the server.\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
         } else if (!strcmp(message, "dlfl")) {
             // Delete file function
-            printf("%s:%d delete a file from the server.\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
+            printf("%s:%d deleted a file from the server.\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
         }
     }
 

@@ -5,6 +5,7 @@
 #include <dirent.h>
 #include <ctype.h>
 #include <pthread.h>
+#include <fcntl.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>

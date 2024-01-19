@@ -1,14 +1,15 @@
 #include "tcpnet.h"
 
 #define AUTH "ohygIf2YICKdNafb5YePqgI02EuI6Cd"
-#define COMM_LEN 64
+#define COMM_LEN 256
 
 struct Client {
     int socket;
-    uint8_t isRunning;
+    uint8_t serverClosed;
 };
 
-void* clientConsole(void* cl);
+void clientConsole(struct Client* client);
+void getFileNamesFromServer(int socket);
 
 int main(int argc, char* argv[]) {
     if (!isValidClientCommand(argc, argv)) { return -1; }
@@ -49,77 +50,21 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-    // Spawn client console thread
-    client.isRunning = 1;
-    pthread_t consoleThread;
-    pthread_create(&consoleThread, NULL, clientConsole, &client);
+    client.serverClosed = 0;
+    clientConsole(&client);
 
-    // Create a new socket descriptor for non-blocking recv
-    int nonBlockingSocket = dup(client.socket);
-
-    // Set the new socket descriptor to non-blocking mode
-    int flags = fcntl(nonBlockingSocket, F_GETFL, 0);
-    fcntl(nonBlockingSocket, F_SETFL, flags | O_NONBLOCK);
-
-    // Verify for a closed server
-    while (strcmp(svMessage, "clsd") && client.isRunning) {
-        recv(nonBlockingSocket, svMessage, 4, 0);
-
-        // Limit loop to 4 times a second | 250,000 microseconds
-        usleep(250000);
-    }
-
-    if (client.isRunning) {
+    if (client.serverClosed) {
         printf("\nServer closed.\n");
     }
 
-
-    #ifdef MESSAGEHNDL
-    char userInput[10] = {'\0'};
-    printf(">");
-    scanf("%s", userInput);
-
-    if (!strcmp(userInput, "ls")) {
-        struct stat st;
-        if (stat("files", &st)) {
-            if (mkdir("files", 0777)) {
-                printf("Failed to create \"files/\" directory.\n");
-                return -1;
-            }
-        }
-
-        DIR* dir = opendir("files");
-        struct dirent *entry;
-        while ((entry = readdir(dir)) != NULL) {
-            if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
-                // Print the name of each file in the directory
-                printf("%s\n", entry->d_name);
-            }
-        }
-        closedir(dir);
-    }
-
-    // Recieve data from server
-    char serverResponse[256];
-    if (recv(clientSocket, &serverResponse, sizeof(serverResponse), 0) == -1) {
-        printf("Error receiving server data.\n");
-        close(clientSocket);
-        return -1;
-    }
-
-    printf("Server sent the data: %s\n", serverResponse);
-    #endif
-
-    close(nonBlockingSocket);
     close(client.socket);
     return 0;
 }
 
-void* clientConsole(void* cl) {
-    struct Client* client = (struct Client*)cl;
-
+void clientConsole(struct Client* client) {
     char command[COMM_LEN] = {'\0'};
-    while (client->isRunning) {
+    while (!client->serverClosed) {
+        // Spawn server closed thread
         printf("\n> ");
         fgets(command, sizeof(command), stdin);
 
@@ -132,9 +77,13 @@ void* clientConsole(void* cl) {
             action[wordEnd] = tolower(command[wordEnd]);
         }
 
+        // Kill server closed thread
+        // Join thread
+
         if (!strcmp(action, "list") || !strcmp(action, "ls")) {
             // List command
             send(client->socket, "list", strlen("list"), 0);
+            getFileNamesFromServer(client->socket);
         } else if (!strcmp(action, "upload") || !strcmp(action, "up")) {
             // Upload command
             send(client->socket, "upld", strlen("upld"), 0);
@@ -155,11 +104,22 @@ void* clientConsole(void* cl) {
             printf("\x1b[1;34mexit           : \x1b[0mDisconnects from the server and closes the program.\n");
             printf("\x1b[1;36m=============================================================================\x1b[0m\n\n");
         } else if (!strcmp(action, "exit")) {
-            client->isRunning = 0;
+            return;
         } else {
             printf("Command not found. Type \"help\" or \"h\" for help.\n");
         }
     }
+}
 
-    return NULL;
+void getFileNamesFromServer(int socket) {
+    char data[COMM_LEN] = {'\0'};
+    data[COMM_LEN - 1] = '\0';
+
+    while (1) {
+        if (recv(socket, data, sizeof(data), 0) < 1) { continue; }
+        data[COMM_LEN - 1] = '\0';
+
+        if (!strcmp(data, "end")) { break; }
+        printf("%s\n", data);
+    }
 }

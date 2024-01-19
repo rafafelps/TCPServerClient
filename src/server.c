@@ -1,6 +1,7 @@
 #include "tcpnet.h"
 
 #define MAX_CLIENTS 2
+#define MAX_BUFFER_SIZE 64
 #define AUTH "ohygIf2YICKdNafb5YePqgI02EuI6Cd"
 
 struct Client {
@@ -20,6 +21,7 @@ struct ServerData {
 
 void* handleConnections(void* sv);
 void* handleClient(void* cl);
+void sendFilenamesToClient(int clientSocket);
 
 int main(int argc, char* argv[]) {
     if (!isValidServerCommand(argc, argv)) { return 0; }
@@ -221,6 +223,7 @@ void* handleClient(void* sv) {
         // Check client message and call a specific action
         if (!strcmp(message, "list")) {
             // List function
+            sendFileNamesToClient(client->socket);
             printf("%s:%d listed server files.\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
         } else if (!strcmp(message, "upld")) {
             // Upload function
@@ -235,4 +238,30 @@ void* handleClient(void* sv) {
     }
 
     return NULL;
+}
+
+void sendFilenamesToClient(int clientSocket) {
+    struct stat st;
+    if (stat("files", &st)) {
+        if (mkdir("files", 0777)) {
+            printf("Failed to create \"files/\" directory.\n");
+            return;
+        }
+    }
+
+    DIR* dir = opendir("files");
+    if (dir == NULL) {
+        perror("Error opening directory.\n");
+        return;
+    }
+
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        if (!strcmp(entry->d_name, ".") && !strcmp(entry->d_name, "..")) {
+            send(clientSocket, entry->d_name, strlen(entry->d_name) + 1, 0);
+        }
+    }
+
+    send(clientSocket, "end", strlen("end") + 1, 0);
+    closedir(dir);
 }

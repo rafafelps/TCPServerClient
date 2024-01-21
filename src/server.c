@@ -223,7 +223,7 @@ void* handleClient(void* sv) {
         // Check client message and call a specific action
         if (!strcmp(message, "list")) {
             // List function
-            sendFileNamesToClient(client->socket);
+            sendFilenamesToClient(client->socket);
             printf("%s:%d listed server files.\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
         } else if (!strcmp(message, "upld")) {
             // Upload function
@@ -241,6 +241,7 @@ void* handleClient(void* sv) {
 }
 
 void sendFilenamesToClient(int clientSocket) {
+    // Create "files" folder if it doesn't exists
     struct stat st;
     if (stat("files", &st)) {
         if (mkdir("files", 0777)) {
@@ -251,17 +252,22 @@ void sendFilenamesToClient(int clientSocket) {
 
     DIR* dir = opendir("files");
     if (dir == NULL) {
-        perror("Error opening directory.\n");
+        printf("Error opening directory.\n");
         return;
     }
 
+    // Send all filenames to client
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
-        if (!strcmp(entry->d_name, ".") && !strcmp(entry->d_name, "..")) {
-            send(clientSocket, entry->d_name, strlen(entry->d_name) + 1, 0);
+        if (strcmp(entry->d_name, ".") && strcmp(entry->d_name, "..")) {
+            ssize_t msgLen = strlen(entry->d_name);
+            send(clientSocket, &msgLen, sizeof(ssize_t), 0);
+            send(clientSocket, entry->d_name, msgLen, 0);
         }
     }
 
-    send(clientSocket, "end", strlen("end") + 1, 0);
+    ssize_t msgLen = 3;
+    send(clientSocket, &msgLen, sizeof(ssize_t), 0);
+    send(clientSocket, "end", msgLen, 0);
     closedir(dir);
 }

@@ -5,11 +5,12 @@
 
 struct Client {
     int socket;
-    uint8_t serverClosed;
+    uint8_t nonBlocking;
 };
 
 void clientConsole(struct Client* client);
-void getFileNamesFromServer(int socket);
+void* detectClosedServer(void* cl);
+void getFilenamesFromServer(int socket);
 
 int main(int argc, char* argv[]) {
     if (!isValidClientCommand(argc, argv)) { return -1; }
@@ -50,12 +51,7 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-    client.serverClosed = 0;
     clientConsole(&client);
-
-    if (client.serverClosed) {
-        printf("\nServer closed.\n");
-    }
 
     close(client.socket);
     return 0;
@@ -63,8 +59,12 @@ int main(int argc, char* argv[]) {
 
 void clientConsole(struct Client* client) {
     char command[COMM_LEN] = {'\0'};
-    while (!client->serverClosed) {
+    while (1) {
         // Spawn server closed thread
+        client->nonBlocking = 1;
+        pthread_t clsdServerThread;
+        pthread_create(&clsdServerThread, NULL, detectClosedServer, client);
+
         printf("\n> ");
         fgets(command, sizeof(command), stdin);
 
@@ -77,13 +77,14 @@ void clientConsole(struct Client* client) {
             action[wordEnd] = tolower(command[wordEnd]);
         }
 
-        // Kill server closed thread
-        // Join thread
+        // Restore blocking mode
+        client->nonBlocking = 0;
+        pthread_join(clsdServerThread, NULL);
 
         if (!strcmp(action, "list") || !strcmp(action, "ls")) {
             // List command
             send(client->socket, "list", strlen("list"), 0);
-            getFileNamesFromServer(client->socket);
+            getFilenamesFromServer(client->socket);
         } else if (!strcmp(action, "upload") || !strcmp(action, "up")) {
             // Upload command
             send(client->socket, "upld", strlen("upld"), 0);
@@ -111,15 +112,74 @@ void clientConsole(struct Client* client) {
     }
 }
 
-void getFileNamesFromServer(int socket) {
-    char data[COMM_LEN] = {'\0'};
-    data[COMM_LEN - 1] = '\0';
+void* detectClosedServer(void* cl) {
+    struct Client* client = (struct Client*)cl;
 
+    // Set client socket to non blocking mode
+    int flags = fcntl(client->socket, F_GETFL, 0);
+    if (flags < 0) {
+        printf("Error: fcntl F_GETFL.\n");
+        close(client->socket);
+        exit(-1);
+    }
+
+    if (fcntl(client->socket, F_SETFL, flags | O_NONBLOCK) < 0) {
+        printf("Error: fcntl F_SETFL O_NONBLOCK.\n");
+        close(client->socket);
+        exit(-1);
+    }
+
+    // Check server for a closed server message
+    char svMessage[5] = {'\0'};
+    while (client->nonBlocking && strcmp(svMessage, "clsd")) {
+        recv(client->socket, svMessage, 4, 0);
+
+        // Limit loop to 4 times a second | 250,000 microseconds
+        usleep(250000);
+    }
+
+    // Restore back blocking mode
+    if (!client->nonBlocking) {
+        int flags = fcntl(client->socket, F_GETFL, 0);
+        if (flags < 0) {
+            printf("Error: fcntl F_GETFL.\n");
+            close(client->socket);
+            exit(-1);
+        }
+
+        if (fcntl(client->socket, F_SETFL, flags & ~O_NONBLOCK) < 0) {
+            printf("Error: fcntl F_SETFL ~O_NONBLOCK\n");
+            close(client->socket);
+            exit(-1);
+        }
+
+        return NULL;
+    }
+
+    printf("\nServer closed.\n");
+    close(client->socket);
+    exit(0);
+    return NULL;
+}
+
+void getFilenamesFromServer(int socket) {
     while (1) {
-        if (recv(socket, data, sizeof(data), 0) < 1) { continue; }
-        data[COMM_LEN - 1] = '\0';
+        ssize_t msgLen = 0;
+        recv(socket, &msgLen, sizeof(ssize_t), 0);
 
-        if (!strcmp(data, "end")) { break; }
+        char* data = (char*)malloc(msgLen + 1);
+        recv(socket, data, msgLen, 0);
+        data[msgLen] = '\0';
+
+        if (!strcmp(data, "clsd")) {
+            printf("\nServer closed.\n");
+            close(socket);
+            exit(0);
+        }
+
+        if (!strcmp(data, "end")) { free(data); break; }
+
         printf("%s\n", data);
+        free(data);
     }
 }

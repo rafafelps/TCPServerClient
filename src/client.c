@@ -41,17 +41,12 @@ int main(int argc, char* argv[]) {
     recv(client.socket, svMessage, 4, 0);
     if (!strcmp(svMessage, "conn")) {
         printf("Connected to the server!\n");
+        clientConsole(&client);
     } else if (!strcmp(svMessage, "full")) {
         printf("Server is full.\n");
-        close(client.socket);
-        return 0;
     } else if (!strcmp(svMessage, "auth")) {
         printf("Wrong authentication code.\n");
-        close(client.socket);
-        return 0;
     }
-
-    clientConsole(&client);
 
     close(client.socket);
     return 0;
@@ -66,9 +61,9 @@ void clientConsole(struct Client* client) {
         pthread_create(&clsdServerThread, NULL, detectClosedServer, client);
 
         printf("\n> ");
-        fgets(command, sizeof(command), stdin);
+        fgets(command, sizeof(command) - 1, stdin);
 
-        // Lowercase first command
+        // Lowercase first word
         char action[COMM_LEN] = {'\0'};
         uint32_t wordEnd;
         for (wordEnd = 0; command[wordEnd] != '\0'; wordEnd++) {
@@ -129,11 +124,9 @@ void* detectClosedServer(void* cl) {
         exit(-1);
     }
 
-    // Check server for a closed server message
-    char svMessage[5] = {'\0'};
-    while (client->nonBlocking && strcmp(svMessage, "clsd")) {
-        recv(client->socket, svMessage, 4, 0);
-
+    // Check server for a closed server
+    char svMessage[2] = {'\0'};
+    while (client->nonBlocking && recv(client->socket, svMessage, 1, 0) != 0) {
         // Limit loop to 4 times a second | 250,000 microseconds
         usleep(250000);
     }

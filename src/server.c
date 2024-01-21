@@ -255,7 +255,7 @@ void sendFilenamesToClient(int clientSocket) {
         printf("Error opening directory.\n");
         return;
     }
-
+    
     // Send all filenames to client
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
@@ -265,7 +265,7 @@ void sendFilenamesToClient(int clientSocket) {
             send(clientSocket, entry->d_name, msgLen, 0);
         }
     }
-
+    
     ssize_t msgLen = 3;
     send(clientSocket, &msgLen, sizeof(ssize_t), 0);
     send(clientSocket, "end", msgLen, 0);

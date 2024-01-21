@@ -105,9 +105,6 @@ int main(int argc, char* argv[]) {
     for (uint32_t i = 0; i < MAX_CLIENTS; i++) {
         if (server.clients[i] == NULL) { continue; }
 
-        // Send server closed message to client
-        send(server.clients[i]->socket, "clsd", strlen("clsd"), 0);
-
         close(server.clients[i]->socket);
         free(server.clients[i]);
         server.clients[i] == NULL;
@@ -153,8 +150,7 @@ void* handleConnections(void* sv) {
 
         // Validate client
         char auth[32] = {'\0'};
-        recv(client->socket, auth, 32, 0);
-        auth[31] = '\0';
+        recv(client->socket, auth, 31, 0);
         if (strcmp(auth, AUTH)) {
             // Send authentication error message
             send(client->socket, "auth", strlen("auth"), 0);

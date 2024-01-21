@@ -165,17 +165,26 @@ void* detectClosedServer(void* cl) {
 void getFilenamesFromServer(int socket) {
     while (1) {
         ssize_t msgLen = 0;
-        recv(socket, &msgLen, sizeof(ssize_t), 0);
-
-        char* data = (char*)malloc(msgLen + 1);
-        recv(socket, data, msgLen, 0);
-        data[msgLen] = '\0';
-
-        if (!strcmp(data, "clsd")) {
+        if (recv(socket, &msgLen, sizeof(ssize_t), 0) <= 0) {
             printf("\nServer closed.\n");
             close(socket);
             exit(0);
         }
+
+        char* data = (char*)malloc(msgLen + 1);
+        if (data == NULL) {
+            printf("Failed to allocate memory for filename.\n");
+            close(socket);
+            exit(-1);
+        }
+
+        if (recv(socket, data, msgLen, 0) <= 0) {
+            printf("\nServer closed.\n");
+            close(socket);
+            free(data);
+            exit(0);
+        }
+        data[msgLen] = '\0';
 
         if (!strcmp(data, "end")) { free(data); break; }
 

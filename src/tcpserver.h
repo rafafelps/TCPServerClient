@@ -14,8 +14,7 @@ struct File* createFileNode(char* filename) {
     char* filePath = (char*)malloc(strlen(filename) + 7);
     if (filePath == NULL) { return NULL; }
 
-    snprintf(filePath, sizeof(filePath), "%s/%s", "files", filename);
-    filePath[sizeof(filePath) - 1] = '\0';
+    snprintf(filePath, strlen(filename) + 7, "%s/%s", "files", filename);
 
     struct File* newFile = (struct File*)malloc(sizeof(struct File));
     if (newFile == NULL) { free(filePath); return NULL; }
@@ -35,7 +34,6 @@ struct File* createFileNode(char* filename) {
         return NULL;
     }
     strcpy(newFile->name, filename);
-    newFile->name[sizeof(newFile->name) - 1] = '\0';
 
     // Access the size of the file from the st_size field
     newFile->bytes = (long)fileStat.st_size;

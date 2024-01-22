@@ -11,6 +11,7 @@ struct Client {
 void clientConsole(struct Client* client);
 void* detectClosedServer(void* cl);
 void getFilenamesFromServer(int socket);
+void deleteFile(int socket, char* filename);
 
 int main(int argc, char* argv[]) {
     if (!isValidClientCommand(argc, argv)) { return -1; }
@@ -61,7 +62,7 @@ void clientConsole(struct Client* client) {
         pthread_create(&clsdServerThread, NULL, detectClosedServer, client);
 
         printf("\n> ");
-        fgets(command, sizeof(command) - 1, stdin);
+        fgets(command, COMM_LEN - 1, stdin);
 
         // Lowercase first word
         char action[COMM_LEN] = {'\0'};
@@ -89,6 +90,7 @@ void clientConsole(struct Client* client) {
         } else if (!strcmp(action, "delete") || !strcmp(action, "del")) {
             // Delete command
             send(client->socket, "dlfl", strlen("dlfl"), 0);
+            deleteFile(client->socket, "test.txt");
         } else if (!strcmp(action, "help") || !strcmp(action, "h")) {
             // Help command
             printf("\n\x1b[1;36m================================ Command List ===============================\x1b[0m\n");
@@ -184,4 +186,43 @@ void getFilenamesFromServer(int socket) {
         printf("%s\n", data);
         free(data);
     }
+}
+
+void deleteFile(int socket, char* filename) {
+    // Send filename to the server
+    ssize_t msgLen = strlen(filename);
+    send(socket, &msgLen, sizeof(ssize_t), 0);
+    send(socket, filename, msgLen, 0);
+
+    msgLen = 0;
+    if (recv(socket, &msgLen, sizeof(ssize_t), 0) <= 0) {
+        printf("\nServer closed.\n");
+        close(socket);
+        exit(0);
+    }
+
+    char* data = (char*)malloc(msgLen + 1);
+    if (data == NULL) {
+        printf("Failed to allocate memory.\n");
+        close(socket);
+        exit(-1);
+    }
+
+    if (recv(socket, data, msgLen, 0) <= 0) {
+        printf("\nServer closed.\n");
+        close(socket);
+        free(data);
+        exit(0);
+    }
+    data[msgLen] = '\0';
+
+    if (!strcmp(data, "end")) {
+        printf("File deleted successfully!\n");
+    } else if (!strcmp(data, "nfnd")) {
+        printf("Couldn\'t find %s\n", filename);
+    } else if (!strcmp(data, "error")) {
+        printf("Error trying to delete the file.\n");
+    }
+
+    free(data);
 }

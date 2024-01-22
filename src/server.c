@@ -22,6 +22,7 @@ struct ServerData {
 void* handleConnections(void* sv);
 void* handleClient(void* cl);
 void sendFilenamesToClient(int clientSocket);
+int deleteFile(struct ServerData* server, int clientSocket);
 
 int main(int argc, char* argv[]) {
     if (!isValidServerCommand(argc, argv)) { return 0; }
@@ -90,7 +91,7 @@ int main(int argc, char* argv[]) {
     // Exit command
     char message[5] = {'\0'};
     while (strcmp(message, "exit")) {
-        scanf("%s", message);
+        scanf("%4s", message);
         message[4] = '\0';
 
         for (uint8_t i = 0; message[i] != '\0'; i++) {
@@ -243,7 +244,9 @@ void* handleClient(void* sv) {
             printf("%s:%d downloaded a file from the server.\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
         } else if (!strcmp(message, "dlfl")) {
             // Delete file function
-            printf("%s:%d deleted a file from the server.\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
+            if (deleteFile(server, client->socket)) {
+                printf("%s:%d deleted a file from the server.\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
+            }
         }
     }
 
@@ -280,4 +283,90 @@ void sendFilenamesToClient(int clientSocket) {
     send(clientSocket, &msgLen, sizeof(ssize_t), 0);
     send(clientSocket, "end", msgLen, 0);
     closedir(dir);
+}
+
+int deleteFile(struct ServerData* server, int clientSocket) {
+    // Get filename
+    ssize_t fileLen = 0;
+    if (recv(clientSocket, &fileLen, sizeof(ssize_t), 0) <= 0) {
+        fileLen = 5;
+        send(clientSocket, &fileLen, sizeof(ssize_t), 0);
+        send(clientSocket, "error", fileLen, 0);
+        return 0;
+    }
+    if (fileLen <= 0) {
+        fileLen = 5;
+        send(clientSocket, &fileLen, sizeof(ssize_t), 0);
+        send(clientSocket, "error", fileLen, 0);
+        return 0;
+    }
+
+    char* filename = (char*)malloc(fileLen + 1);
+    if (filename == NULL) {
+        fileLen = 5;
+        send(clientSocket, &fileLen, sizeof(ssize_t), 0);
+        send(clientSocket, "error", fileLen, 0);
+        return 0;
+    }
+
+    if (recv(clientSocket, filename, fileLen, 0) <= 0) {
+        fileLen = 5;
+        send(clientSocket, &fileLen, sizeof(ssize_t), 0);
+        send(clientSocket, "error", fileLen, 0);
+        free(filename);
+        return 0;
+    }
+    filename[fileLen] = '\0';
+
+    // Check file existance
+    struct File* file = getFileNode(server->filesHead, filename);
+    if (file == NULL) {
+        fileLen = 4;
+        send(clientSocket, &fileLen, sizeof(ssize_t), 0);
+        send(clientSocket, "nfnd", fileLen, 0);
+        free(filename);
+        return 0;
+    }
+
+    // Delete file
+    char* filePath = (char*)malloc(fileLen + 7);
+    if (filePath == NULL) {
+        fileLen = 5;
+        send(clientSocket, &fileLen, sizeof(ssize_t), 0);
+        send(clientSocket, "error", fileLen, 0);
+        free(filename);
+        return 0;
+    }
+
+    if (file->inUse) {
+        fileLen = 5;
+        send(clientSocket, &fileLen, sizeof(ssize_t), 0);
+        send(clientSocket, "error", fileLen, 0);
+
+        free(filename);
+        free(filePath);
+        return 0;
+    }
+
+    snprintf(filePath, fileLen + 7, "%s/%s", "files", filename);
+    if (remove(filePath) != 0) {
+        fileLen = 5;
+        send(clientSocket, &fileLen, sizeof(ssize_t), 0);
+        send(clientSocket, "error", fileLen, 0);
+
+        free(filename);
+        free(filePath);
+        return 0;
+    }
+
+    fileLen = 3;
+    send(clientSocket, &fileLen, sizeof(ssize_t), 0);
+    send(clientSocket, "end", fileLen, 0);
+
+    // Remove file from server's list
+    removeFileNode(file);
+
+    free(filename);
+    free(filePath);
+    return 1;
 }

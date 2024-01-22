@@ -22,6 +22,7 @@ struct ServerData {
 void* handleConnections(void* sv);
 void* handleClient(void* cl);
 void sendFilenamesToClient(int clientSocket);
+int receiveFileFromClient(struct ServerData* server, int clientSocket);
 int deleteFile(struct ServerData* server, int clientSocket);
 
 int main(int argc, char* argv[]) {
@@ -238,7 +239,9 @@ void* handleClient(void* sv) {
             printf("%s:%d listed server files.\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
         } else if (!strcmp(message, "upld")) {
             // Upload function
-            printf("%s:%d uploaded a file to the server.\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
+            if (receiveFileFromClient(server, client->socket)) {
+                printf("%s:%d uploaded a file to the server.\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
+            }
         } else if (!strcmp(message, "down")) {
             // Download function
             printf("%s:%d downloaded a file from the server.\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
@@ -363,9 +366,157 @@ int deleteFile(struct ServerData* server, int clientSocket) {
     send(clientSocket, &fileLen, sizeof(ssize_t), 0);
     send(clientSocket, "end", fileLen, 0);
 
-    // Remove file from server's list
+    // Remove file from server list
     removeFileNode(file);
 
+    free(filename);
+    free(filePath);
+    return 1;
+}
+
+int receiveFileFromClient(struct ServerData* server, int clientSocket) {
+    // Get filename from client
+    ssize_t filenameLen = 0;
+    if (recv(clientSocket, &filenameLen, sizeof(ssize_t), 0) <= 0) {
+        filenameLen = 5;
+        send(clientSocket, &filenameLen, sizeof(ssize_t), 0);
+        send(clientSocket, "error", filenameLen, 0);
+        return 0;
+    }
+    
+    char* filename = (char*)malloc(filenameLen + 1);
+    filename[filenameLen] = '\0';
+    if (filename == NULL) {
+        filenameLen = 5;
+        send(clientSocket, &filenameLen, sizeof(ssize_t), 0);
+        send(clientSocket, "error", filenameLen, 0);
+        return 0;
+    }
+
+    if (recv(clientSocket, filename, filenameLen, 0) <= 0) {
+        filenameLen = 5;
+        send(clientSocket, &filenameLen, sizeof(ssize_t), 0);
+        send(clientSocket, "error", filenameLen, 0);
+        return 0;
+    }
+
+    // Check if file already exists
+    struct File* file = getFileNode(server->filesHead, filename);
+    if (file != NULL) {
+        filenameLen = 5;
+        send(clientSocket, &filenameLen, sizeof(ssize_t), 0);
+        send(clientSocket, "exist", filenameLen, 0);
+        free(filename);
+        return 0;
+    }
+    filenameLen = 9;
+    send(clientSocket, &filenameLen, sizeof(ssize_t), 0);
+    send(clientSocket, "confirmed", filenameLen, 0);
+
+    // Create new file and append it to the server list
+    file = createFileNode(filename);
+    insertFileNode(&server->filesHead, file);
+    file->inUse = 1;
+
+    // Receive file size
+    ssize_t fileSize = 0;
+    if (recv(clientSocket, &fileSize, sizeof(ssize_t), 0) <= 0) {
+        filenameLen = 5;
+        send(clientSocket, &filenameLen, sizeof(ssize_t), 0);
+        send(clientSocket, "error", filenameLen, 0);
+        free(filename);
+        removeFileNode(file);
+        return 0;
+    }
+    file->bytes = fileSize;
+
+    // Create "files" folder if it doesn't exists
+    struct stat st;
+    if (stat("files", &st)) {
+        if (mkdir("files", 0777)) {
+            printf("Failed to create \"files/\" directory.\n");
+            filenameLen = 5;
+            send(clientSocket, &filenameLen, sizeof(ssize_t), 0);
+            send(clientSocket, "error", filenameLen, 0);
+            free(filename);
+            removeFileNode(file);
+            return 0;
+        }
+    }
+
+    // Open the file for writing
+    char* filePath = (char*)malloc(strlen(filename) + 7);
+    if (filePath == NULL) {
+        filenameLen = 5;
+        send(clientSocket, &filenameLen, sizeof(ssize_t), 0);
+        send(clientSocket, "error", filenameLen, 0);
+        free(filename);
+        removeFileNode(file);
+        return 0;
+    }
+
+    snprintf(filePath, strlen(filename) + 7, "%s/%s", "files", filename);
+    int fileDescriptor = open(filePath, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    if (fileDescriptor < 0) {
+        filenameLen = 5;
+        send(clientSocket, &filenameLen, sizeof(ssize_t), 0);
+        send(clientSocket, "error", filenameLen, 0);
+        free(filename);
+        free(filePath);
+        removeFileNode(file);
+        return 0;
+    }
+
+    // Receive and write the file content
+    char buffer[1024];
+    ssize_t bytesRead;
+    ssize_t totalBytesRead = 0;
+
+    while (totalBytesRead != fileSize) {
+        if ((bytesRead = recv(clientSocket, buffer, 1024, 0)) <= 0) {
+            filenameLen = 5;
+            send(clientSocket, &filenameLen, sizeof(ssize_t), 0);
+            send(clientSocket, "error", filenameLen, 0);
+            removeFileNode(file);
+            close(fileDescriptor);
+            remove(filePath);
+            free(filename);
+            free(filePath);
+            return 0;
+        }
+        if (write(fileDescriptor, buffer, bytesRead) <= 0) {
+            filenameLen = 5;
+            send(clientSocket, &filenameLen, sizeof(ssize_t), 0);
+            send(clientSocket, "error", filenameLen, 0);
+            removeFileNode(file);
+            close(fileDescriptor);
+            remove(filePath);
+            free(filename);
+            free(filePath);
+            return 0;
+        }
+        totalBytesRead += bytesRead;
+    }
+
+    // Send confirmation to the client
+    if (totalBytesRead == fileSize) {
+        filenameLen = 7;
+        send(clientSocket, &filenameLen, sizeof(ssize_t), 0);
+        send(clientSocket, "success", filenameLen, 0);
+    } else {
+        filenameLen = 5;
+        send(clientSocket, &filenameLen, sizeof(ssize_t), 0);
+        send(clientSocket, "error", filenameLen, 0);
+        removeFileNode(file);
+        close(fileDescriptor);
+        remove(filePath);
+        free(filename);
+        free(filePath);
+        return 0;
+    }
+
+    file->inUse = 0;
+    close(fileDescriptor);
     free(filename);
     free(filePath);
     return 1;

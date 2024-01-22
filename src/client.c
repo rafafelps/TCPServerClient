@@ -11,6 +11,7 @@ struct Client {
 void clientConsole(struct Client* client);
 void* detectClosedServer(void* cl);
 void getFilenamesFromServer(int socket);
+void sendFileToTheServer(int socket, char* path);
 void deleteFile(int socket, char* filename);
 
 int main(int argc, char* argv[]) {
@@ -82,9 +83,44 @@ void clientConsole(struct Client* client) {
             send(client->socket, "list", strlen("list"), 0);
             getFilenamesFromServer(client->socket);
         } else if (!strcmp(action, "upload") || !strcmp(action, "up")) {
+            // Get file path from command
+            char filePath[COMM_LEN] = {'\0'};
+            if (command[wordEnd] == '\0' || command[wordEnd] == '\n') {
+                printf("Error. Usage: upload [path]\n");
+                continue;
+            } else {
+                for (uint32_t i = 1; command[wordEnd + i] != '\0'; i++) {
+                    if (command[wordEnd + i] == ' ' || command[wordEnd + i] == '\n') { break; }
+                    filePath[i - 1] = command[wordEnd + i];
+                }
+                if (filePath[0] == '\0') {
+                    printf("Error. Usage: upload [path]\n");
+                    continue;
+                }
+            }
+
+
+
             // Upload command
             send(client->socket, "upld", strlen("upld"), 0);
+            sendFileToTheServer(client->socket, filePath);
         } else if (!strcmp(action, "download") || !strcmp(action, "dwn")) {
+            // Get filename from command
+            char filename[COMM_LEN] = {'\0'};
+            if (command[wordEnd] == '\0' || command[wordEnd] == '\n') {
+                printf("Error. Usage: download [filename]\n");
+                continue;
+            } else {
+                for (uint32_t i = 1; command[wordEnd + i] != '\0'; i++) {
+                    if (command[wordEnd + i] == ' ' || command[wordEnd + i] == '\n') { break; }
+                    filename[i - 1] = command[wordEnd + i];
+                }
+                if (filename[0] == '\0') {
+                    printf("Error. Usage: download [filename]\n");
+                    continue;
+                }
+            }
+
             // Download command
             send(client->socket, "down", strlen("down"), 0);
         } else if (!strcmp(action, "delete") || !strcmp(action, "del")) {
@@ -202,6 +238,139 @@ void getFilenamesFromServer(int socket) {
         printf("%s\n", data);
         free(data);
     }
+}
+
+void sendFileToTheServer(int socket, char* path) {
+    // Get information about file size
+    struct stat fileStat;
+    if (stat(path, &fileStat)) {
+        printf("Couldn\'t find \"%s\"\n", path);
+        return;
+    }
+    ssize_t fileSize = (long)fileStat.st_size;
+    if (fileSize < 0) {
+        printf("Error getting file size.\n");
+        return;
+    }
+
+    // Open the file for reading
+    int fileDescriptor = open(path, O_RDONLY);
+    if (fileDescriptor < 0) {
+        printf("Error opening %s\n", path);
+        return;
+    }
+
+    // Get filename
+    size_t pathLen = strlen(path);
+    ssize_t filenameLen;
+    for (filenameLen = 1; filenameLen <= pathLen; filenameLen++) {
+        if (path[pathLen - filenameLen] == '\\' || path[pathLen - filenameLen] == '/') { break; }
+    }
+    filenameLen--;
+    if (filenameLen <= 0 || filenameLen > pathLen) {
+        printf("Error getting file name.\n");
+        close(fileDescriptor);
+        return;
+    }
+
+    // Send filename to the server
+    char* filename = path + (pathLen - filenameLen);
+    send(socket, &filenameLen, sizeof(ssize_t), 0);
+    send(socket, filename, filenameLen, 0);
+
+    // Receive server confirmation
+    ssize_t svMessageLen = 0;
+    if (recv(socket, &svMessageLen, sizeof(ssize_t), 0) <= 0) {
+        printf("\nServer closed.\n");
+        close(fileDescriptor);
+        close(socket);
+        exit(0);
+    }
+    char* svMessage = (char*)malloc(svMessageLen + 1);
+    svMessage[svMessageLen] = '\0';
+    if (svMessage == NULL) {
+        printf("Error allocating memory for server response.\n");
+        close(fileDescriptor);
+        close(socket);
+        exit(-1);
+    }
+
+    if (recv(socket, svMessage, svMessageLen, 0) <= 0) {
+        printf("\nServer closed.\n");
+        close(fileDescriptor);
+        close(socket);
+        free(svMessage);
+        exit(0);
+    }
+
+    if (!strcmp(svMessage, "exist")) {
+        printf("This file name already exists on the server.\n");
+        close(fileDescriptor);
+        free(svMessage);
+        return;
+    } else if (!strcmp(svMessage, "confirmed")) {
+        send(socket, &fileSize, sizeof(ssize_t), 0);
+    } else {
+        printf("Error getting server confirmation.\n");
+        close(fileDescriptor);
+        free(svMessage);
+        return;
+    }
+    free(svMessage);
+
+    // Read and send the file content
+    char buffer[1024];
+    ssize_t bytesRead;
+    ssize_t totalBytesRead = 0;
+
+    while ((bytesRead = read(fileDescriptor, buffer, 1024)) > 0) {
+        if (send(socket, buffer, bytesRead, 0) < 0) {
+            printf("\nServer closed.\n");
+            close(fileDescriptor);
+            close(socket);
+            break;
+        }
+        totalBytesRead += bytesRead;
+    }
+
+    close(fileDescriptor);
+    if (totalBytesRead != fileSize) {
+        printf("Error. File size sent doesn\'t match with local file.\n");
+        close(socket);
+        exit(-1);
+    }
+
+    // Get server confirmation
+    if (recv(socket, &svMessageLen, sizeof(ssize_t), 0) <= 0) {
+        printf("\nServer closed.\n");
+        close(socket);
+        exit(0);
+    }
+
+    svMessage = (char*)malloc(svMessageLen + 1);
+    svMessage[svMessageLen] = '\0';
+    if (svMessage == NULL) {
+        printf("Error allocating memory for server response.\n");
+        close(socket);
+        exit(-1);
+    }
+    if (recv(socket, svMessage, svMessageLen, 0) <= 0) {
+        printf("\nServer closed.\n");
+        close(socket);
+        free(svMessage);
+        exit(0);
+    }
+
+    if (!strcmp(svMessage, "success")) {
+        printf("File sent to the server successfully!\n");
+    } else {
+        printf("Something went wrong.\n");
+        close(socket);
+        free(svMessage);
+        exit(-1);
+    }
+
+    free(svMessage);
 }
 
 void deleteFile(int socket, char* filename) {

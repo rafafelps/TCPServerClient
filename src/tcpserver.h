@@ -20,12 +20,12 @@ struct File* createFileNode(char* filename) {
     struct File* newFile = (struct File*)malloc(sizeof(struct File));
     if (newFile == NULL) { free(filePath); return NULL; }
     
-    // Use stat to get information about the file
+    // Use stat to get file size
     struct stat fileStat;
-    if (stat(filePath, &fileStat)) {
-        free(filePath);
-        free(newFile);
-        return NULL;
+    if (!stat(filePath, &fileStat)) {
+        newFile->bytes = (long)fileStat.st_size;
+    } else {
+        newFile->bytes = 0;
     }
 
     newFile->name = (char*)malloc(strlen(filename) + 1);
@@ -35,9 +35,6 @@ struct File* createFileNode(char* filename) {
         return NULL;
     }
     strcpy(newFile->name, filename);
-
-    // Access the size of the file from the st_size field
-    newFile->bytes = (long)fileStat.st_size;
 
     newFile->inUse = 0;
     newFile->next = NULL;

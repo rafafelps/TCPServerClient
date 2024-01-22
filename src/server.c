@@ -263,26 +263,26 @@ void sendFilenamesToClient(int clientSocket) {
         }
     }
 
-    DIR* dir = opendir("files");
-    if (dir == NULL) {
+    struct dirent** namelist;
+    int n = scandir("files", &namelist, 0, versionsort);
+    if (n < 0) {
         printf("Error opening directory.\n");
         return;
     }
-    
-    // Send all filenames to client
-    struct dirent *entry;
-    while ((entry = readdir(dir)) != NULL) {
-        if (strcmp(entry->d_name, ".") && strcmp(entry->d_name, "..")) {
-            ssize_t msgLen = strlen(entry->d_name);
+    for (int i = 0; i < n; i++) {
+        if (strcmp(namelist[i]->d_name, ".") && strcmp(namelist[i]->d_name, "..")) {
+            ssize_t msgLen = strlen(namelist[i]->d_name);
             send(clientSocket, &msgLen, sizeof(ssize_t), 0);
-            send(clientSocket, entry->d_name, msgLen, 0);
+            send(clientSocket, namelist[i]->d_name, msgLen, 0);
         }
+        free(namelist[i]);
     }
-    
+    free(namelist);
+
     ssize_t msgLen = 3;
     send(clientSocket, &msgLen, sizeof(ssize_t), 0);
     send(clientSocket, "end", msgLen, 0);
-    closedir(dir);
+    return;
 }
 
 int deleteFile(struct ServerData* server, int clientSocket) {

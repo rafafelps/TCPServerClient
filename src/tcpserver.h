@@ -1,5 +1,6 @@
 #ifndef TCP_SERVER
 #define TCP_SERVER
+#define _GNU_SOURCE
 #include "tcpnet.h"
 
 struct File {

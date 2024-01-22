@@ -88,9 +88,25 @@ void clientConsole(struct Client* client) {
             // Download command
             send(client->socket, "down", strlen("down"), 0);
         } else if (!strcmp(action, "delete") || !strcmp(action, "del")) {
+            // Get filename from command
+            char filename[COMM_LEN] = {'\0'};
+            if (command[wordEnd] == '\0' || command[wordEnd] == '\n') {
+                printf("Error. Usage: delete [filename]\n");
+                continue;
+            } else {
+                for (uint32_t i = 1; command[wordEnd + i] != '\0'; i++) {
+                    if (command[wordEnd + i] == ' ' || command[wordEnd + i] == '\n') { break; }
+                    filename[i - 1] = command[wordEnd + i];
+                }
+                if (filename[0] == '\0') {
+                    printf("Error. Usage: delete [filename]\n");
+                    continue;
+                }
+            }
+
             // Delete command
             send(client->socket, "dlfl", strlen("dlfl"), 0);
-            deleteFile(client->socket, "test.txt");
+            deleteFile(client->socket, filename);
         } else if (!strcmp(action, "help") || !strcmp(action, "h")) {
             // Help command
             printf("\n\x1b[1;36m================================ Command List ===============================\x1b[0m\n");

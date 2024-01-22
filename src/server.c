@@ -1,7 +1,6 @@
-#include "tcpnet.h"
+#include "tcpserver.h"
 
 #define MAX_CLIENTS 2
-#define MAX_BUFFER_SIZE 64
 #define AUTH "ohygIf2YICKdNafb5YePqgI02EuI6Cd"
 
 struct Client {
@@ -16,6 +15,7 @@ struct ServerData {
     struct Client* clients[MAX_CLIENTS];
     struct Client* currentClient;
     uint8_t connectedClients;
+    struct File* filesHead;
     uint8_t isRunning;
 };
 
@@ -52,6 +52,20 @@ int main(int argc, char* argv[]) {
         printf("Error binding the socket.\n");
         close(server.socket);
         return -1;
+    }
+
+    // Fill all files informations into server data
+    server.filesHead = NULL;
+    DIR* dir = opendir("files");
+    if (dir != NULL) {
+        struct dirent *entry;
+        while ((entry = readdir(dir)) != NULL) {
+            if (strcmp(entry->d_name, ".") && strcmp(entry->d_name, "..")) {
+                struct File* file = createFileNode(entry->d_name);
+                if (file != NULL)
+                    insertFileNode(&server.filesHead, file);
+            }
+        }
     }
 
     // Listen for incoming connections

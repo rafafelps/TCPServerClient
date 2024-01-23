@@ -102,7 +102,6 @@ void clientConsole(struct Client* client) {
 
 
             // Upload command
-            send(client->socket, "upld", strlen("upld"), 0);
             sendFileToTheServer(client->socket, filePath);
         } else if (!strcmp(action, "download") || !strcmp(action, "dwn")) {
             // Get filename from command
@@ -272,6 +271,8 @@ void sendFileToTheServer(int socket, char* path) {
         close(fileDescriptor);
         return;
     }
+
+    send(socket, "upld", strlen("upld"), 0);
 
     // Send filename to the server
     char* filename = path + (pathLen - filenameLen);

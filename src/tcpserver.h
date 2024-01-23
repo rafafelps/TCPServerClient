@@ -60,6 +60,8 @@ void insertFileNode(struct File** head, struct File* newFile) {
 }
 
 struct File* getFileNode(struct File* head, char* filename) {
+    if (head == NULL) { return NULL; }
+
     while(strcmp(head->name, filename)) {
         head = head->next;
         if (head == NULL) { return NULL; }
@@ -68,7 +70,13 @@ struct File* getFileNode(struct File* head, char* filename) {
     return head;
 }
 
-void removeFileNode(struct File* file) {
+void removeFileNode(struct File** head, struct File* file) {
+    if (*head == NULL || file == NULL) { return; }
+
+    if (*head == file) {
+        *head = file->next;
+    }
+
     if (file->prev != NULL) {
         file->prev->next = file->next;
     }

@@ -367,7 +367,7 @@ int deleteFile(struct ServerData* server, int clientSocket) {
     send(clientSocket, "end", fileLen, 0);
 
     // Remove file from server list
-    removeFileNode(file);
+    removeFileNode(&server->filesHead, file);
 
     free(filename);
     free(filePath);
@@ -425,7 +425,7 @@ int receiveFileFromClient(struct ServerData* server, int clientSocket) {
         send(clientSocket, &filenameLen, sizeof(ssize_t), 0);
         send(clientSocket, "error", filenameLen, 0);
         free(filename);
-        removeFileNode(file);
+        removeFileNode(&server->filesHead, file);
         return 0;
     }
     file->bytes = fileSize;
@@ -439,7 +439,7 @@ int receiveFileFromClient(struct ServerData* server, int clientSocket) {
             send(clientSocket, &filenameLen, sizeof(ssize_t), 0);
             send(clientSocket, "error", filenameLen, 0);
             free(filename);
-            removeFileNode(file);
+            removeFileNode(&server->filesHead, file);
             return 0;
         }
     }
@@ -451,7 +451,7 @@ int receiveFileFromClient(struct ServerData* server, int clientSocket) {
         send(clientSocket, &filenameLen, sizeof(ssize_t), 0);
         send(clientSocket, "error", filenameLen, 0);
         free(filename);
-        removeFileNode(file);
+        removeFileNode(&server->filesHead, file);
         return 0;
     }
 
@@ -463,7 +463,7 @@ int receiveFileFromClient(struct ServerData* server, int clientSocket) {
         send(clientSocket, "error", filenameLen, 0);
         free(filename);
         free(filePath);
-        removeFileNode(file);
+        removeFileNode(&server->filesHead, file);
         return 0;
     }
 
@@ -477,7 +477,7 @@ int receiveFileFromClient(struct ServerData* server, int clientSocket) {
             filenameLen = 5;
             send(clientSocket, &filenameLen, sizeof(ssize_t), 0);
             send(clientSocket, "error", filenameLen, 0);
-            removeFileNode(file);
+            removeFileNode(&server->filesHead, file);
             close(fileDescriptor);
             remove(filePath);
             free(filename);
@@ -488,7 +488,7 @@ int receiveFileFromClient(struct ServerData* server, int clientSocket) {
             filenameLen = 5;
             send(clientSocket, &filenameLen, sizeof(ssize_t), 0);
             send(clientSocket, "error", filenameLen, 0);
-            removeFileNode(file);
+            removeFileNode(&server->filesHead, file);
             close(fileDescriptor);
             remove(filePath);
             free(filename);
@@ -507,7 +507,7 @@ int receiveFileFromClient(struct ServerData* server, int clientSocket) {
         filenameLen = 5;
         send(clientSocket, &filenameLen, sizeof(ssize_t), 0);
         send(clientSocket, "error", filenameLen, 0);
-        removeFileNode(file);
+        removeFileNode(&server->filesHead, file);
         close(fileDescriptor);
         remove(filePath);
         free(filename);

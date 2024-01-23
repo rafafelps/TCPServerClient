@@ -23,6 +23,7 @@ void* handleConnections(void* sv);
 void* handleClient(void* cl);
 void sendFilenamesToClient(int clientSocket);
 int receiveFileFromClient(struct ServerData* server, int clientSocket);
+int sendFileToTheClient(struct ServerData* server, int clientSocket);
 int deleteFile(struct ServerData* server, int clientSocket);
 
 int main(int argc, char* argv[]) {
@@ -244,7 +245,9 @@ void* handleClient(void* sv) {
             }
         } else if (!strcmp(message, "down")) {
             // Download function
-            printf("%s:%d downloaded a file from the server.\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
+            if (sendFileToTheClient(server, client->socket)) {
+                printf("%s:%d downloaded a file from the server.\n", inet_ntoa(client->address.sin_addr), ntohs(client->address.sin_port));
+            }
         } else if (!strcmp(message, "dlfl")) {
             // Delete file function
             if (deleteFile(server, client->socket)) {
@@ -518,6 +521,99 @@ int receiveFileFromClient(struct ServerData* server, int clientSocket) {
     file->inUse = 0;
     close(fileDescriptor);
     free(filename);
+    free(filePath);
+    return 1;
+}
+
+int sendFileToTheClient(struct ServerData* server, int clientSocket) {
+    // Get filename from the client
+    ssize_t filenameLen = 0;
+    if (recv(clientSocket, &filenameLen, sizeof(ssize_t), 0) <= 0) {
+        filenameLen = 5;
+        send(clientSocket, &filenameLen, sizeof(ssize_t), 0);
+        send(clientSocket, "error", filenameLen, 0);
+        return 0;
+    }
+
+    char* filename = (char*)malloc(filenameLen + 1);
+    if (filename == NULL) {
+        filenameLen = 5;
+        send(clientSocket, &filenameLen, sizeof(ssize_t), 0);
+        send(clientSocket, "error", filenameLen, 0);
+        return 0;
+    }
+    filename[filenameLen] = '\0';
+
+    if (recv(clientSocket, filename, filenameLen, 0) <= 0) {
+        filenameLen = 5;
+        send(clientSocket, &filenameLen, sizeof(ssize_t), 0);
+        send(clientSocket, "error", filenameLen, 0);
+        free(filename);
+        return 0;
+    }
+
+    // Get information about file
+    struct File* file = getFileNode(server->filesHead, filename);
+    if (file == NULL) {
+        filenameLen = 5;
+        send(clientSocket, &filenameLen, sizeof(ssize_t), 0);
+        send(clientSocket, "exist", filenameLen, 0);
+        free(filename);
+        return 0;
+    }
+    free(filename);
+    file->inUse = 1;
+
+    // Send file existance confirmation
+    filenameLen = 9;
+    send(clientSocket, &filenameLen, sizeof(ssize_t), 0);
+    send(clientSocket, "confirmed", filenameLen, 0);
+
+    // Send file size to the client
+    send(clientSocket, &file->bytes, sizeof(ssize_t), 0);
+
+    char* filePath = (char*)malloc(strlen(filename) + 7);
+    if (filePath == NULL) {
+        filenameLen = 5;
+        send(clientSocket, &filenameLen, sizeof(ssize_t), 0);
+        send(clientSocket, "error", filenameLen, 0);
+        return 0;
+    }
+
+    snprintf(filePath, strlen(filename) + 7, "%s/%s", "files", file->name);
+
+    // Open the file for reading
+    int fileDescriptor = open(filePath, O_RDONLY);
+    if (fileDescriptor < 0) {
+        filenameLen = 5;
+        send(clientSocket, &filenameLen, sizeof(ssize_t), 0);
+        send(clientSocket, "error", filenameLen, 0);
+        return 0;
+    }
+
+    // Read and send the file content
+    char buffer[1024];
+    ssize_t bytesRead;
+    ssize_t totalBytesRead = 0;
+
+    while ((bytesRead = read(fileDescriptor, buffer, 1024)) > 0) {
+        if (send(clientSocket, buffer, bytesRead, 0) <= 0) {
+            close(fileDescriptor);
+            free(filePath);
+            return 0;
+        }
+        totalBytesRead += bytesRead;
+    }
+
+    if (totalBytesRead != file->bytes) {
+        filenameLen = 5;
+        send(clientSocket, &filenameLen, sizeof(ssize_t), 0);
+        send(clientSocket, "error", filenameLen, 0);
+        return 0;
+    }
+
+    file->inUse = 0;
+    close(fileDescriptor);
     free(filePath);
     return 1;
 }

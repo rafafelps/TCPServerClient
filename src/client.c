@@ -12,6 +12,7 @@ void clientConsole(struct Client* client);
 void* detectClosedServer(void* cl);
 void getFilenamesFromServer(int socket);
 void sendFileToTheServer(int socket, char* path);
+void receiveFileFromTheServer(int socket, char* filename);
 void deleteFile(int socket, char* filename);
 
 int main(int argc, char* argv[]) {
@@ -122,6 +123,7 @@ void clientConsole(struct Client* client) {
 
             // Download command
             send(client->socket, "down", strlen("down"), 0);
+            receiveFileFromTheServer(client->socket, filename);
         } else if (!strcmp(action, "delete") || !strcmp(action, "del")) {
             // Get filename from command
             char filename[COMM_LEN] = {'\0'};
@@ -374,7 +376,7 @@ void sendFileToTheServer(int socket, char* path) {
     free(svMessage);
 }
 
-int receiveFileFromTheServer(int socket, char* filename) {
+void receiveFileFromTheServer(int socket, char* filename) {
     // Send filename to the server
     ssize_t filenameLen = strlen(filename);
     send(socket, &filenameLen, sizeof(ssize_t), 0);

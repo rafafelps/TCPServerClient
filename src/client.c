@@ -374,6 +374,113 @@ void sendFileToTheServer(int socket, char* path) {
     free(svMessage);
 }
 
+int receiveFileFromTheServer(int socket, char* filename) {
+    // Send filename to the server
+    ssize_t filenameLen = strlen(filename);
+    send(socket, &filenameLen, sizeof(ssize_t), 0);
+    send(socket, filename, filenameLen, 0);
+
+    // Check if file already exists
+    filenameLen = 0;
+    if (recv(socket, &filenameLen, sizeof(ssize_t), 0) <= 0) {
+        printf("\nServer closed.\n");
+        close(socket);
+        exit(0);
+    }
+    char* svMessage = (char*)malloc(filenameLen + 1);
+    if (svMessage == NULL) {
+        printf("Error allocating memory for server response.\n");
+        close(socket);
+        exit(-1);
+    }
+
+    svMessage[filenameLen] = '\0';
+    if (!strcmp(svMessage, "exist")) {
+        printf("This file doesn\'t exist.\n");
+        free(svMessage);
+        return;
+    } else if (strcmp(svMessage, "confirmed")) {
+        printf("Something went wrong.\n");
+        free(svMessage);
+        close(socket);
+        exit(-1);
+    }
+    free(svMessage);
+
+    // Receive file size
+    ssize_t fileSize = 0;
+    if (recv(socket, &fileSize, sizeof(ssize_t), 0) <= 0) {
+        printf("\nServer closed.\n");
+        close(socket);
+        exit(0);
+    }
+
+    // Create "files" folder if it doesn't exists
+    struct stat st;
+    if (stat("files", &st)) {
+        if (mkdir("files", 0777)) {
+            printf("Failed to create \"files/\" directory.\n");
+            close(socket);
+            exit(-1);
+        }
+    }
+
+    // Open the file for writing
+    char* filePath = (char*)malloc(strlen(filename) + 7);
+    if (filePath == NULL) {
+        printf("Error allocating memory for server response.\n");
+        close(socket);
+        exit(-1);
+    }
+
+    snprintf(filePath, strlen(filename) + 7, "%s/%s", "files", filename);
+    int fileDescriptor = open(filePath, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    if (fileDescriptor < 0) {
+        printf("Error opening the file descriptor.\n");
+        free(filePath);
+        close(socket);
+        exit(-1);
+    }
+
+    // Receive and write the file content
+    char buffer[1024];
+    ssize_t bytesRead;
+    ssize_t totalBytesRead = 0;
+
+    while (totalBytesRead != fileSize) {
+        if ((bytesRead = recv(socket, buffer, 1024, 0)) <= 0) {
+            printf("\nServer closed.\n");
+            close(fileDescriptor);
+            close(socket);
+            remove(filePath);
+            free(filePath);
+            exit(0);
+        }
+        if (write(fileDescriptor, buffer, bytesRead) <= 0) {
+            printf("Failed to write to file.\n");
+            close(fileDescriptor);
+            close(socket);
+            remove(filePath);
+            free(filePath);
+            exit(0);
+        }
+        totalBytesRead += bytesRead;
+    }
+
+    if (totalBytesRead == fileSize) {
+        printf("File downloaded successfully!\n");
+    } else {
+        printf("Failed to download the file.\n");
+        close(fileDescriptor);
+        remove(filePath);
+        free(filePath);
+        return;
+    }
+
+    close(fileDescriptor);
+    free(filePath);
+}
+
 void deleteFile(int socket, char* filename) {
     // Send filename to the server
     ssize_t msgLen = strlen(filename);

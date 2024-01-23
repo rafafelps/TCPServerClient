@@ -1,7 +1,25 @@
 #ifndef TCP_SERVER
 #define TCP_SERVER
+
 #define _GNU_SOURCE
-#include "tcpnet.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <ctype.h>
+#include <pthread.h>
+#include <fcntl.h>
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
+#define MAX_CLIENTS 2
+#define AUTH "ohygIf2YICKdNafb5YePqgI02EuI6Cd"
 
 struct File {
     char* name;
@@ -11,82 +29,44 @@ struct File {
     struct File* prev;
 };
 
-struct File* createFileNode(char* filename) {
-    char* filePath = (char*)malloc(strlen(filename) + 7);
-    if (filePath == NULL) { return NULL; }
+struct Client {
+    int socket;
+    struct sockaddr_in address;
+    socklen_t addressLength;
+};
 
-    snprintf(filePath, strlen(filename) + 7, "%s/%s", "files", filename);
+struct ServerData {
+    int socket;
+    struct sockaddr_in address;
+    struct Client* clients[MAX_CLIENTS];
+    struct Client* currentClient;
+    uint8_t connectedClients;
+    struct File* filesHead;
+    uint8_t isRunning;
+};
 
-    struct File* newFile = (struct File*)malloc(sizeof(struct File));
-    if (newFile == NULL) { free(filePath); return NULL; }
-    
-    // Use stat to get file size
-    struct stat fileStat;
-    if (!stat(filePath, &fileStat)) {
-        newFile->bytes = (long)fileStat.st_size;
-    } else {
-        newFile->bytes = 0;
-    }
+// Verifies for valid server console arguments
+int isValidServerCommand(int argc, char* argv[]);
 
-    newFile->name = (char*)malloc(strlen(filename) + 1);
-    if (newFile->name == NULL) {
-        free(filePath);
-        free(newFile);
-        return NULL;
-    }
-    strcpy(newFile->name, filename);
+// Accepts new connections, adds them to the server list
+// and creates a new thread for each connection.
+// Parameter is struct ServerData*
+void* handleConnections(void* sv);
 
-    newFile->inUse = 0;
-    newFile->next = NULL;
-    newFile->prev = NULL;
+void* handleClient(void* cl);
 
-    free(filePath);
-    return newFile;
-}
+void sendFilenamesToClient(int clientSocket);
 
-void insertFileNode(struct File** head, struct File* newFile) {
-    if (*head == NULL) {
-        *head = newFile;
-        return;
-    }
+int receiveFileFromClient(struct ServerData* server, int clientSocket);
 
-    struct File* p = *head;
-    while (p->next != NULL) {
-        p = p->next;
-    }
+int sendFileToTheClient(struct ServerData* server, int clientSocket);
 
-    p->next = newFile;
-    newFile->prev = p;
-}
+int deleteFile(struct ServerData* server, int clientSocket);
 
-struct File* getFileNode(struct File* head, char* filename) {
-    if (head == NULL) { return NULL; }
-
-    while(strcmp(head->name, filename)) {
-        head = head->next;
-        if (head == NULL) { return NULL; }
-    }
-
-    return head;
-}
-
-void removeFileNode(struct File** head, struct File* file) {
-    if (*head == NULL || file == NULL) { return; }
-
-    if (*head == file) {
-        *head = file->next;
-    }
-
-    if (file->prev != NULL) {
-        file->prev->next = file->next;
-    }
-
-    if (file->next != NULL) {
-        file->next->prev = file->prev;
-    }
-
-    free(file->name);
-    free(file);
-}
+// File doubly linked list functions
+struct File* createFileNode(char* filename);
+void insertFileNode(struct File** head, struct File* newFile);
+struct File* getFileNode(struct File* head, char* filename);
+void removeFileNode(struct File** head, struct File* file);
 
 #endif

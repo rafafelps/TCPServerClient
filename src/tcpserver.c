@@ -388,7 +388,7 @@ int sendFileToTheClient(struct ServerData* server, int clientSocket) {
         return 0;
     }
 
-    snprintf(filePath, strlen(filename) + 7, "%s/%s", "files", file->name);
+    snprintf(filePath, strlen(file->name) + 7, "%s/%s", "files", file->name);
 
     // Open the file for reading
     int fileDescriptor = open(filePath, O_RDONLY);

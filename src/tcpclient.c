@@ -388,6 +388,13 @@ void receiveFileFromTheServer(int socket, char* filename) {
     }
 
     svMessage[filenameLen] = '\0';
+    if (recv(socket, svMessage, filenameLen, 0) <= 0) {
+        printf("\nServer closed.\n");
+        close(socket);
+        free(svMessage);
+        exit(0);
+    }
+
     if (!strcmp(svMessage, "exist")) {
         printf("This file doesn\'t exist.\n");
         free(svMessage);

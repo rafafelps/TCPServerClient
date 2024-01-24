@@ -16,7 +16,7 @@ int main(int argc, char* argv[]) {
     server.address.sin_port = htons(atoi(argv[1]));
     server.address.sin_addr.s_addr = INADDR_ANY;
 
-    // Set SO_REUSEADDR option to allow reuse of the address
+    // Set SO_REUSEADDR option to allow the reuse of the address
     int reuseaddr = 1;
     if (setsockopt(server.socket, SOL_SOCKET, SO_REUSEADDR, &reuseaddr, sizeof(int)) < 0) {
         printf("Error setsockopt failed.\n");

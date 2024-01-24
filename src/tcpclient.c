@@ -203,6 +203,7 @@ void* detectClosedServer(void* cl) {
 
 void getFilenamesFromServer(int socket) {
     while (1) {
+        // Receive filename from the server
         ssize_t msgLen = 0;
         if (recv(socket, &msgLen, sizeof(ssize_t), 0) <= 0) {
             printf("\nServer closed.\n");
@@ -425,15 +426,16 @@ void receiveFileFromTheServer(int socket, char* filename) {
         }
     }
 
-    // Open the file for writing
+    // Create full path
     char* filePath = (char*)malloc(strlen(filename) + 7);
     if (filePath == NULL) {
         printf("Error allocating memory for server response.\n");
         close(socket);
         exit(-1);
     }
-
     snprintf(filePath, strlen(filename) + 7, "%s/%s", "files", filename);
+
+    // Open the file for writing
     int fileDescriptor = open(filePath, O_WRONLY | O_CREAT | O_TRUNC, 0666);
     if (fileDescriptor < 0) {
         printf("Error opening the file descriptor.\n");

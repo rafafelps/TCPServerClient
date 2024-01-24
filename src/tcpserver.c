@@ -255,7 +255,7 @@ int receiveFileFromClient(struct ServerData* server, int clientSocket) {
         }
     }
 
-    // Open the file for writing
+    // Create full file path
     char* filePath = (char*)malloc(strlen(filename) + 7);
     if (filePath == NULL) {
         filenameLen = 5;
@@ -265,8 +265,9 @@ int receiveFileFromClient(struct ServerData* server, int clientSocket) {
         removeFileNode(&server->filesHead, file);
         return 0;
     }
-
     snprintf(filePath, strlen(filename) + 7, "%s/%s", "files", filename);
+
+    // Open the file for writing
     int fileDescriptor = open(filePath, O_WRONLY | O_CREAT | O_TRUNC, 0666);
     if (fileDescriptor < 0) {
         filenameLen = 5;
@@ -380,6 +381,7 @@ int sendFileToTheClient(struct ServerData* server, int clientSocket) {
     // Send file size to the client
     send(clientSocket, &file->bytes, sizeof(ssize_t), 0);
 
+    // Create full file path
     char* filePath = (char*)malloc(strlen(filename) + 7);
     if (filePath == NULL) {
         filenameLen = 5;
@@ -387,7 +389,6 @@ int sendFileToTheClient(struct ServerData* server, int clientSocket) {
         send(clientSocket, "error", filenameLen, 0);
         return 0;
     }
-
     snprintf(filePath, strlen(file->name) + 7, "%s/%s", "files", file->name);
 
     // Open the file for reading
@@ -469,7 +470,7 @@ int deleteFile(struct ServerData* server, int clientSocket) {
         return 0;
     }
 
-    // Delete file
+    // Create full file path
     char* filePath = (char*)malloc(fileLen + 7);
     if (filePath == NULL) {
         fileLen = 5;
@@ -478,18 +479,19 @@ int deleteFile(struct ServerData* server, int clientSocket) {
         free(filename);
         return 0;
     }
-
+    snprintf(filePath, fileLen + 7, "%s/%s", "files", filename);
+    
+    // Check if the file is being used
     if (file->inUse) {
         fileLen = 5;
         send(clientSocket, &fileLen, sizeof(ssize_t), 0);
         send(clientSocket, "error", fileLen, 0);
-
-        free(filename);
         free(filePath);
+        free(filename);
         return 0;
     }
-
-    snprintf(filePath, fileLen + 7, "%s/%s", "files", filename);
+    
+    // Delete file
     if (remove(filePath) != 0) {
         fileLen = 5;
         send(clientSocket, &fileLen, sizeof(ssize_t), 0);
@@ -499,13 +501,12 @@ int deleteFile(struct ServerData* server, int clientSocket) {
         free(filePath);
         return 0;
     }
+    // Remove file from server list
+    removeFileNode(&server->filesHead, file);
 
     fileLen = 3;
     send(clientSocket, &fileLen, sizeof(ssize_t), 0);
     send(clientSocket, "end", fileLen, 0);
-
-    // Remove file from server list
-    removeFileNode(&server->filesHead, file);
 
     free(filename);
     free(filePath);
